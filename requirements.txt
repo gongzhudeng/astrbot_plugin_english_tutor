@@ -1,0 +1,1 @@
+# No extra dependencies required: uses stdlib (sqlite3/asyncio) and AstrBot built-ins.

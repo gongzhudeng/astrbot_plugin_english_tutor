@@ -1,0 +1,208 @@
+{
+  "tutor": {
+    "type": "object",
+    "description": "英语陪练设置",
+    "items": {
+      "auto_detect": {
+        "type": "bool",
+        "default": true,
+        "description": "自动检测英文对话",
+        "hint": "开启后，滑动窗口检测到英文消息占比达到阈值时自动进入英语模式（注入教练提示词、存档、计数提取）。全程中文聊天时零额外开销。关闭后只能用 /英语开启 手动切换。"
+      },
+      "english_ratio_threshold": {
+        "type": "float",
+        "default": 0.3,
+        "description": "英文消息占比阈值",
+        "hint": "最近「窗口条数」条消息中英文消息的占比达到该值即进入英语模式。0.3 ≈ 10 条里有 3 条含英文。"
+      },
+      "window_size": {
+        "type": "int",
+        "default": 10,
+        "description": "滑动窗口条数",
+        "hint": "用于统计英文消息占比的最近消息条数。"
+      },
+      "auto_exit_rounds": {
+        "type": "int",
+        "default": 10,
+        "description": "自动退出轮数",
+        "hint": "自动模式下，连续这么多条消息都不是英文时退出英语模式。"
+      },
+      "difficulty": {
+        "type": "string",
+        "default": "B1 中级",
+        "options": ["A2 入门", "B1 中级", "B2 中高级", "C1 高级"],
+        "description": "难度定位",
+        "hint": "教练对话和每日生成共用的难度定位。"
+      },
+      "style": {
+        "type": "string",
+        "default": "自然日常",
+        "description": "对话风格",
+        "hint": "如：自然日常 / 商务职场 / 旅行场景 / 雅思口语。"
+      },
+      "inject_prompt_enabled": {
+        "type": "bool",
+        "default": false,
+        "description": "注入教练提示词",
+        "hint": "开启后英语模式期间向模型注入一段简短的教练指令（英文对话、纠错并用工具记录）。关闭时本插件纯后台记录：数据靠定期提取整理，完全不影响模型的人设。"
+      },
+      "inject_prompt_mode": {
+        "type": "string",
+        "default": "临时用户消息末尾",
+        "options": ["临时用户消息末尾", "系统提示词末尾"],
+        "description": "教练提示词注入位置",
+        "hint": "临时用户消息末尾最温和、不易带偏人设；系统提示词末尾指令更强。两种方式都不会写入对话历史。"
+      },
+      "inject_context_enabled": {
+        "type": "bool",
+        "default": false,
+        "description": "注入学习档案摘要",
+        "hint": "开启后英语模式期间向临时用户消息注入学习档案摘要（近期错误、收藏句子、到期复习、今日练习）。与上面的教练提示词开关相互独立；每轮变化的内容固定走临时用户消息，避免打穿提示词缓存。"
+      },
+      "inject_errors_top_n": {
+        "type": "int",
+        "default": 5,
+        "description": "注入错误条数上限"
+      },
+      "inject_sentences_top_m": {
+        "type": "int",
+        "default": 5,
+        "description": "注入收藏句子上限"
+      }
+    }
+  },
+  "extraction": {
+    "type": "object",
+    "description": "定期学习提取",
+    "items": {
+      "enabled": {
+        "type": "bool",
+        "default": true,
+        "description": "开启定期提取",
+        "hint": "英语模式每满 N 轮，后台调用一次模型，把对话中的错误、好句、生词整理进笔记本（与长期记忆插件相互独立）。"
+      },
+      "trigger_rounds": {
+        "type": "int",
+        "default": 10,
+        "description": "提取触发轮数",
+        "hint": "英语模式下累计这么多轮对话后触发一次后台提取。"
+      }
+    }
+  },
+  "llm": {
+    "type": "object",
+    "description": "模型回退链（提取 / 每日生成共用）",
+    "items": {
+      "provider_ids": {
+        "type": "list",
+        "items": {"type": "string"},
+        "default": [],
+        "description": "模型回退链",
+        "hint": "按顺序尝试：前一个超时或失败（含格式解析失败）就换下一个，可在选择器里调整顺序。留空则使用当前会话的默认模型。提取与每日生成共用。",
+        "_special": "select_providers"
+      },
+      "timeout_seconds": {
+        "type": "int",
+        "default": 120,
+        "description": "单次请求超时（秒）"
+      },
+      "max_retries": {
+        "type": "int",
+        "default": 0,
+        "description": "单个模型重试次数",
+        "hint": "同一模型失败后的重试次数，可为 0（不重试，直接换下一个模型）。"
+      }
+    }
+  },
+  "daily_gen": {
+    "type": "object",
+    "description": "每日定时生成",
+    "items": {
+      "enabled": {
+        "type": "bool",
+        "default": false,
+        "description": "开启每日定时生成",
+        "hint": "每天到达设定时间后自动生成英语学习内容并推送到绑定会话（用 /英语绑定 在目标聊天里绑定）。"
+      },
+      "time": {
+        "type": "string",
+        "default": "08:00",
+        "description": "生成时间（HH:MM）"
+      },
+      "count": {
+        "type": "int",
+        "default": 5,
+        "description": "句子数量",
+        "hint": "生成句子模式时的条数；对话模式的轮数由模型按内容安排。"
+      },
+      "topic": {
+        "type": "string",
+        "default": "不限",
+        "description": "主题偏好",
+        "hint": "如：职场 / 旅行 / 科技新闻 / 不限。会作为 {topic} 填入提示词模板。"
+      },
+      "prompt_template": {
+        "type": "text",
+        "default": "你是一位专业的英语老师。请为我生成今天的英语学习内容。\n难度定位：{difficulty}\n主题：{topic}\n内容形式：句子练习或简短情景对话，根据主题选择更合适的一种。\n要求：表达地道、贴近日常实用场景，略高于我当前水平一点点；结合我近期的错误和收藏的句子，优先覆盖我还没掌握的表达。",
+        "description": "生成提示词模板",
+        "hint": "可用占位符：{difficulty}（难度）、{topic}（主题）、{count}（数量）。插件的固定输出格式要求会自动拼接在模板之后，无需在模板里写格式。"
+      },
+      "push_mode": {
+        "type": "string",
+        "default": "image",
+        "options": ["image", "text", "both"],
+        "labels": ["图片卡片", "文字", "图片 + 文字"],
+        "description": "推送模式",
+        "hint": "图片卡片为本地渲染的精美学习卡片；渲染失败时自动降级为文字。"
+      },
+      "image_include_translation": {
+        "type": "bool",
+        "default": true,
+        "description": "图片附带中文翻译",
+        "hint": "翻译在生成时总是保留，此开关只控制图片上是否显示。"
+      },
+      "due_reminder": {
+        "type": "bool",
+        "default": true,
+        "description": "附带到期复习提醒",
+        "hint": "推送末尾附一行“今日到期复习：X 个单词、Y 条错误”。只是顺带一句，不会单独发消息打扰你。"
+      },
+      "catch_up": {
+        "type": "bool",
+        "default": true,
+        "description": "错过补跑",
+        "hint": "机器人重启或离线错过了设定时间，恢复后当天补生成推送一次。"
+      }
+    }
+  },
+  "ai_fill": {
+    "type": "object",
+    "description": "AI 一键填充（WebUI 新增/编辑弹窗）",
+    "items": {
+      "vocab_prompt": {
+        "type": "text",
+        "default": "请为下面这个英语单词或短语生成学习笔记。\n单词：{text}\n要求：meaning 为中文释义（可多个词性）；example 为一个地道英文例句；dialog 为一段使用该词的 3~4 句简短情景对话（英文，每行一句，以\"说话人: 内容\"格式分行）；context 为一句话中文说明它的使用场景。",
+        "description": "单词填充提示词",
+        "hint": "可用占位符：{text}（填入的单词）。插件会自动在末尾拼接固定的 JSON 输出格式要求，无需在提示词里写格式。走「模型回退链」，链首放便宜的小模型即可。"
+      },
+      "sentence_prompt": {
+        "type": "text",
+        "default": "请为下面这个英语句子生成学习笔记。\n句子：{text}\n要求：note 为中文翻译 + 一句话用法说明；dialog 为一段包含该句的 3~4 句简短情景对话（英文，每行一句，以\"说话人: 内容\"格式分行）；context 为两三句中文描述的使用场景。",
+        "description": "句子填充提示词",
+        "hint": "可用占位符：{text}（填入的句子）。其余同上。"
+      }
+    }
+  },
+  "storage": {
+    "type": "object",
+    "description": "数据保留",
+    "items": {
+      "archive_retention_days": {
+        "type": "int",
+        "default": 90,
+        "description": "对话存档保留天数",
+        "hint": "超过天数的对话存档自动清理；错误、收藏句子、单词永不自动删除。0 表示永久保留。"
+      }
+    }
+  }
+}

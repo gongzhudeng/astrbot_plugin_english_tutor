@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>英语私教 · 数据管理</title>
+<style>
+  :root {
+    --bg: #f6f4ef;
+    --panel: #ffffff;
+    --text: #2b2a28;
+    --muted: #8a8072;
+    --line: #e7e1d3;
+    --accent: #b45309;
+    --accent-soft: #fdf3e7;
+    --ok: #2e7d32;
+    --danger: #c0392b;
+    --shadow: 0 1px 3px rgba(90, 75, 40, 0.08);
+  }
+  body.dark {
+    --bg: #1c1c1a;
+    --panel: #262624;
+    --text: #e8e4da;
+    --muted: #9b937f;
+    --line: #3a3934;
+    --accent: #e8963c;
+    --accent-soft: #33291c;
+    --ok: #7cb87f;
+    --danger: #e07060;
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+    font-size: 14px;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 20px 18px 48px; }
+
+  .head { display: flex; align-items: baseline; gap: 12px; margin: 6px 2px 16px; }
+  .head h1 { font-size: 20px; font-weight: 700; margin: 0; }
+  .head .sub { color: var(--muted); font-size: 12.5px; }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 18px; }
+  .stat {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 12px 14px; box-shadow: var(--shadow);
+  }
+  .stat .num { font-size: 22px; font-weight: 700; font-family: Georgia, serif; }
+  .stat .label { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .stat.warn .num { color: var(--accent); }
+
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 14px; flex-wrap: wrap; }
+  .tab {
+    appearance: none; background: none; border: none; cursor: pointer;
+    padding: 9px 14px; font-size: 14px; color: var(--muted); font-family: inherit;
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+  }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+
+  .toolbar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+  input, select {
+    background: var(--panel); color: var(--text); border: 1px solid var(--line);
+    border-radius: 8px; padding: 7px 10px; font-size: 13px; font-family: inherit; outline: none;
+  }
+  input:focus, select:focus { border-color: var(--accent); }
+  button.btn {
+    background: var(--panel); color: var(--text); border: 1px solid var(--line);
+    border-radius: 8px; padding: 7px 14px; font-size: 13px; cursor: pointer; font-family: inherit;
+  }
+  button.btn:hover { border-color: var(--accent); color: var(--accent); }
+  button.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.btn.primary:hover { filter: brightness(1.08); color: #fff; }
+  button.link { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 12.5px; padding: 4px 6px; font-family: inherit; }
+  button.link:hover { color: var(--accent); }
+  button.link.danger:hover { color: var(--danger); }
+
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    text-align: left; font-size: 12px; color: var(--muted); font-weight: 500;
+    padding: 10px 14px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--accent-soft) 55%, var(--panel));
+  }
+  td { padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; font-size: 13.5px; }
+  tr:last-child td { border-bottom: none; }
+  .en { font-family: Georgia, "Times New Roman", serif; font-size: 14.5px; }
+  .muted { color: var(--muted); font-size: 12.5px; }
+  .pill { display: inline-block; font-size: 11.5px; border-radius: 999px; padding: 2px 9px; border: 1px solid var(--line); color: var(--muted); }
+  .pill.open { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+  .pill.resolved { color: var(--ok); border-color: var(--ok); }
+
+  .practice-card { padding: 14px 16px; border-bottom: 1px solid var(--line); }
+  .practice-card:last-child { border-bottom: none; }
+  .practice-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .practice-head .date { font-weight: 600; font-family: Georgia, serif; font-size: 15px; }
+  .practice-head .spacer { flex: 1; }
+  .practice-item { padding: 7px 0; border-top: 1px dashed var(--line); }
+  .practice-item:first-of-type { border-top: none; }
+  .practice-item .zh { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+
+  .msg-row { display: flex; gap: 10px; padding: 8px 14px; border-bottom: 1px solid var(--line); }
+  .msg-row:last-child { border-bottom: none; }
+  .msg-role { min-width: 42px; font-size: 12px; color: var(--muted); padding-top: 2px; }
+  .msg-role.user { color: var(--accent); }
+  .msg-content { flex: 1; }
+
+  .pager { display: flex; align-items: center; gap: 10px; justify-content: flex-end; padding: 12px 14px; }
+  .pager .info { color: var(--muted); font-size: 12.5px; }
+
+  .empty { text-align: center; color: var(--muted); padding: 42px 0; }
+  .toast {
+    position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
+    background: var(--text); color: var(--bg); border-radius: 8px; padding: 9px 18px;
+    font-size: 13px; opacity: 0; transition: opacity 0.25s; pointer-events: none; z-index: 50;
+  }
+  .toast.show { opacity: 0.92; }
+
+  .overlay {
+    position: fixed; inset: 0; background: rgba(20, 18, 12, 0.45);
+    display: none; align-items: center; justify-content: center; z-index: 40;
+  }
+  .overlay.show { display: flex; }
+  .dialog {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    width: min(480px, 92vw); padding: 20px 22px; box-shadow: 0 8px 30px rgba(0,0,0,0.18);
+  }
+  .dialog h3 { margin: 0 0 14px; font-size: 15.5px; }
+  .dialog label { display: block; font-size: 12.5px; color: var(--muted); margin: 10px 0 4px; }
+  .dialog input, .dialog select, .dialog textarea { width: 100%; }
+  .dialog textarea { min-height: 60px; resize: vertical; background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; font-family: inherit; font-size: 13px; outline: none; }
+  .dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <h1>英语私教 · 数据管理</h1>
+    <span class="sub" id="bindInfo"></span>
+  </div>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="tabs" id="tabs">
+    <button class="tab active" data-tab="sentences">句子收藏</button>
+    <button class="tab" data-tab="errors">错误日记</button>
+    <button class="tab" data-tab="vocab">单词本</button>
+    <button class="tab" data-tab="practice">每日练习</button>
+    <button class="tab" data-tab="archive">对话存档</button>
+  </div>
+
+  <div class="toolbar" id="toolbar"></div>
+  <div class="panel" id="content"><div class="empty">加载中……</div></div>
+  <div class="pager" id="pager" style="display:none">
+    <span class="info" id="pageInfo"></span>
+    <button class="btn" id="prevBtn">上一页</button>
+    <button class="btn" id="nextBtn">下一页</button>
+  </div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="dialog">
+    <h3 id="dialogTitle">编辑</h3>
+    <div id="dialogFields"></div>
+    <div class="actions">
+      <button class="btn" id="aiFillBtn" style="display:none;margin-right:auto">🤖 AI 填充</button>
+      <button class="btn" id="dialogCancel">取消</button>
+      <button class="btn primary" id="dialogSave">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+const bridge = window.AstrBotPluginPage;
+
+const state = {
+  tab: "sentences",
+  page: { sentences: 1, errors: 1, vocab: 1, practice: 1, archive: 1 },
+  keyword: "",
+  date: "",
+  errorStatus: "all",
+  editing: null,
+};
+const PAGE_SIZE = 20;
+
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  }[c]));
+}
+
+function toast(msg) {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.classList.add("show");
+  setTimeout(() => el.classList.remove("show"), 2200);
+}
+
+async function api(fn) {
+  try { return await fn(); }
+  catch (e) { toast(e.message || "请求失败"); throw e; }
+}
+
+function applyTheme(isDark) { document.body.classList.toggle("dark", !!isDark); }
+
+// ==================== stats ====================
+
+async function loadStats() {
+  const s = await api(() => bridge.apiGet("stats"));
+  const cards = [
+    { n: s.sentences, l: "收藏句子" },
+    { n: s.errors, l: `错误日记（${s.open_errors} 未解决）` },
+    { n: s.vocab, l: "单词本" },
+    { n: s.archive, l: "对话存档" },
+    { n: s.daily, l: "每日练习" },
+    { n: s.due_vocab + s.due_errors, l: "今日到期复习", warn: true },
+  ];
+  document.getElementById("stats").innerHTML = cards.map((c) =>
+    `<div class="stat${c.warn ? " warn" : ""}"><div class="num">${c.n}</div><div class="label">${c.l}</div></div>`
+  ).join("");
+  const bound = s.bound_umo ? "每日推送：已绑定会话" : "每日推送：未绑定（聊天中发送 /英语绑定）";
+  document.getElementById("bindInfo").textContent = bound;
+}
+
+// ==================== toolbar ====================
+
+function renderToolbar() {
+  const bar = document.getElementById("toolbar");
+  const kw = `<input id="kwInput" placeholder="搜索…" value="${esc(state.keyword)}" style="width:200px" />`;
+  const dateInput = (state.tab === "sentences" || state.tab === "archive")
+    ? `<input type="date" id="dateInput" value="${esc(state.date)}" />` : "";
+  const statusSel = state.tab === "errors"
+    ? `<select id="statusSel">
+        <option value="all">全部状态</option>
+        <option value="open">未解决</option>
+        <option value="resolved">已掌握</option>
+       </select>` : "";
+  const addable = ["sentences", "errors", "vocab"].includes(state.tab);
+  const addBtn = addable ? `<button class="btn primary" id="addBtn">➕ 新增</button>` : "";
+  bar.innerHTML = `${kw}${statusSel}${dateInput}
+    <button class="btn" id="refreshBtn">查询</button>
+    <button class="btn" id="resetBtn">重置</button>${addBtn}`;
+  const statusEl = document.getElementById("statusSel");
+  if (statusEl) statusEl.value = state.errorStatus;
+  document.getElementById("refreshBtn").onclick = () => {
+    state.keyword = document.getElementById("kwInput").value.trim();
+    const d = document.getElementById("dateInput");
+    if (d) state.date = d.value;
+    const s = document.getElementById("statusSel");
+    if (s) state.errorStatus = s.value;
+    state.page[state.tab] = 1;
+    loadTab();
+  };
+  document.getElementById("resetBtn").onclick = () => {
+    state.keyword = ""; state.date = ""; state.errorStatus = "all";
+    state.page[state.tab] = 1;
+    loadTab();
+  };
+  const addEl = document.getElementById("addBtn");
+  if (addEl) addEl.onclick = () => openCreator(state.tab);
+  const kwEl = document.getElementById("kwInput");
+  kwEl.addEventListener("keydown", (e) => { if (e.key === "Enter") document.getElementById("refreshBtn").click(); });
+}
+
+// ==================== tables ====================
+
+function actionsCell(kind, id) {
+  return `<td style="white-space:nowrap">
+    <button class="link" data-act="edit" data-kind="${kind}" data-id="${id}">编辑</button>
+    <button class="link danger" data-act="delete" data-kind="${kind}" data-id="${id}">删除</button>
+  </td>`;
+}
+
+function bindActions() {
+  document.querySelectorAll("#content button[data-act]").forEach((btn) => {
+    btn.onclick = () => {
+      const { act, kind, id } = btn.dataset;
+      if (act === "delete") removeRow(kind, Number(id));
+      else if (act === "edit") openEditor(kind, Number(id));
+    };
+  });
+}
+
+async function removeRow(kind, id) {
+  const names = { sentences: "句子", errors: "错误", vocab: "单词", practice: "这期练习" };
+  if (!confirm(`确定删除这条${names[kind] || "记录"}吗？`)) return;
+  await api(() => bridge.apiPost(`${kind}/delete`, { id }));
+  toast("已删除");
+  loadTab();
+  loadStats();
+}
+
+// ---- sentences ----
+
+function renderSentences(data) {
+  if (!data.items.length) return `<div class="empty">还没有收藏的句子。对话里对教练说「这个句子不错，记一下」即可收藏。</div>`;
+  return `<table><thead><tr>
+    <th style="width:44%">句子</th><th>备注</th><th>来源</th><th>日期</th><th></th>
+  </tr></thead><tbody>` + data.items.map((r) => `
+    <tr>
+      <td class="en">${esc(r.sentence)}${r.context ? `<div class="muted" style="margin-top:3px">情境：${esc(String(r.context).slice(0, 120))}${String(r.context).length > 120 ? "…" : ""}</div>` : ""}${r.dialog ? `<div class="muted" style="margin-top:3px; white-space:pre-line">💬 ${esc(String(r.dialog).slice(0, 160))}${String(r.dialog).length > 160 ? "…" : ""}</div>` : ""}</td>
+      <td>${esc(r.note) || '<span class="muted">—</span>'}</td>
+      <td><span class="pill">${r.source === "ai" ? "教练" : "我"}</span></td>
+      <td class="muted">${esc(r.date)}</td>
+      ${actionsCell("sentences", r.id)}
+    </tr>`).join("") + "</tbody></table>";
+}
+
+// ---- errors ----
+
+function renderErrors(data) {
+  if (!data.items.length) return `<div class="empty">还没有错误记录。用英语聊天时教练会自动帮你记录。</div>`;
+  return `<table><thead><tr>
+    <th style="width:32%">原句 → 正确</th><th>解释</th><th>类别</th><th>状态</th><th>最近出现</th><th></th>
+  </tr></thead><tbody>` + data.items.map((r) => `
+    <tr>
+      <td><span class="en">${esc(r.original)}</span><br /><span class="muted">→ ${esc(r.corrected)}</span></td>
+      <td>${esc(r.explanation) || '<span class="muted">—</span>'}</td>
+      <td>${esc(r.category) || '<span class="muted">—</span>'}</td>
+      <td><span class="pill ${r.status === "open" ? "open" : "resolved"}">${r.status === "open" ? "未解决" : "已掌握"}</span></td>
+      <td class="muted">${esc(r.last_date)}（${r.hit_count} 次）</td>
+      ${actionsCell("errors", r.id)}
+    </tr>`).join("") + "</tbody></table>";
+}
+
+// ---- vocab ----
+
+function renderVocab(data) {
+  if (!data.items.length) return `<div class="empty">单词本还是空的。英语对话中出现的生词会自动收录。</div>`;
+  return `<table><thead><tr>
+    <th style="width:20%">单词 / 短语</th><th style="width:26%">释义</th><th>例句</th><th>下次复习</th><th>记录日</th><th></th>
+  </tr></thead><tbody>` + data.items.map((r) => `
+    <tr>
+      <td class="en">${esc(r.word)}${r.context ? `<div class="muted" style="margin-top:3px">情境：${esc(String(r.context).slice(0, 100))}${String(r.context).length > 100 ? "…" : ""}</div>` : ""}${r.dialog ? `<div class="muted" style="margin-top:3px; white-space:pre-line">💬 ${esc(String(r.dialog).slice(0, 140))}${String(r.dialog).length > 140 ? "…" : ""}</div>` : ""}</td>
+      <td>${esc(r.meaning) || '<span class="muted">—</span>'}</td>
+      <td class="en">${esc(r.example) || '<span class="muted">—</span>'}</td>
+      <td class="muted">${esc(r.next_review) || "—"}</td>
+      <td class="muted">${esc(r.date)}</td>
+      ${actionsCell("vocab", r.id)}
+    </tr>`).join("") + "</tbody></table>";
+}
+
+// ---- practice ----
+
+function renderPractice(data) {
+  if (!data.items.length) return `<div class="empty">还没有生成过每日练习。在聊天中发送 /每日英语 可即时生成，或在插件配置中开启定时生成。</div>`;
+  return data.items.map((p) => {
+    const typeName = p.type === "dialogue" ? "情景对话" : "句子练习";
+    const items = (p.items || []).map((it) => {
+      const speaker = it.speaker ? `<span class="muted">${esc(it.speaker)}：</span>` : "";
+      const zh = it.zh ? `<div class="zh">${esc(it.zh)}${it.note ? `（${esc(it.note)}）` : ""}</div>` : "";
+      return `<div class="practice-item"><span class="en">${speaker}${esc(it.en)}</span>${zh}</div>`;
+    }).join("");
+    return `<div class="practice-card">
+      <div class="practice-head">
+        <span class="date">${esc(p.date)}</span>
+        <span class="pill">${typeName}</span>
+        <span class="pill">${p.status === "pushed" ? "已推送" : "已生成"}</span>
+        <span class="muted">${(p.items || []).length} 条</span>
+        <span class="spacer"></span>
+        <button class="link danger" data-act="delete" data-kind="practice" data-id="${p.id}">删除</button>
+      </div>
+      ${items}
+    </div>`;
+  }).join("");
+}
+
+// ---- archive ----
+
+function renderArchive(data) {
+  if (!data.items.length) return `<div class="empty">该日期没有英语对话存档。</div>`;
+  return data.items.map((m) => `
+    <div class="msg-row">
+      <div class="msg-role ${m.role === "user" ? "user" : ""}">${m.role === "user" ? "我" : "教练"}</div>
+      <div class="msg-content">
+        <span class="${m.role === "user" ? "en" : ""}">${esc(m.content)}</span>
+        <div class="muted">${esc(m.date)}</div>
+      </div>
+    </div>`).join("");
+}
+
+// ==================== editor dialog ====================
+
+const EDITORS = {
+  sentences: {
+    noun: "句子",
+    title: "编辑句子",
+    endpoint: "sentences/update",
+    aiFillType: "sentence",
+    fillFrom: "sentence",
+    fields: [
+      { key: "sentence", label: "句子", type: "textarea" },
+      { key: "note", label: "备注（翻译 / 用法）", type: "textarea" },
+      { key: "dialog", label: "示例对话（3~4 句，展示怎么用）", type: "textarea" },
+      { key: "tags", label: "标签", type: "input" },
+      { key: "context", label: "学习情境（当时的对话 / 使用场景）", type: "textarea" },
+    ],
+  },
+  errors: {
+    noun: "错误",
+    title: "编辑错误",
+    endpoint: "errors/update",
+    fields: [
+      { key: "original", label: "原句", type: "textarea" },
+      { key: "corrected", label: "正确句子", type: "textarea" },
+      { key: "explanation", label: "解释", type: "textarea" },
+      { key: "category", label: "类别（如 时态/介词/搭配）", type: "input" },
+      { key: "status", label: "状态", type: "select", options: [["open", "未解决"], ["resolved", "已掌握"]] },
+    ],
+  },
+  vocab: {
+    noun: "单词",
+    title: "编辑单词",
+    endpoint: "vocab/update",
+    aiFillType: "vocab",
+    fillFrom: "word",
+    fields: [
+      { key: "word", label: "单词 / 短语", type: "input" },
+      { key: "meaning", label: "释义", type: "input" },
+      { key: "example", label: "例句", type: "textarea" },
+      { key: "dialog", label: "示例对话（3~4 句，展示怎么用）", type: "textarea" },
+      { key: "context", label: "学习情境（当时的对话 / 使用场景）", type: "textarea" },
+    ],
+  },
+};
+
+function renderDialogFields(editor, row) {
+  document.getElementById("dialogFields").innerHTML = editor.fields.map((f) => {
+    const value = esc((row && row[f.key]) ?? "");
+    if (f.type === "textarea") return `<label>${f.label}</label><textarea data-key="${f.key}">${value}</textarea>`;
+    if (f.type === "select") {
+      const current = row ? row[f.key] : f.options[0][0];
+      return `<label>${f.label}</label><select data-key="${f.key}">` +
+        f.options.map(([v, t]) => `<option value="${v}" ${current === v ? "selected" : ""}>${t}</option>`).join("") +
+        "</select>";
+    }
+    return `<label>${f.label}</label><input data-key="${f.key}" value="${value}" />`;
+  }).join("");
+}
+
+function openDialog(state0) {
+  state.editing = state0;
+  document.getElementById("overlay").classList.add("show");
+}
+
+async function openEditor(kind, id) {
+  const editor = EDITORS[kind];
+  if (!editor) return;
+  const listData = await api(() => bridge.apiGet(kind, { page: 1, page_size: 200 }));
+  const row = listData.items.find((r) => r.id === id);
+  if (!row) { toast("记录不存在"); return; }
+  document.getElementById("dialogTitle").textContent = editor.title;
+  renderDialogFields(editor, row);
+  setAiFillVisible(!!editor.aiFillType);
+  openDialog({ kind, id, endpoint: editor.endpoint, addMode: false });
+}
+
+function openCreator(kind) {
+  const editor = EDITORS[kind];
+  if (!editor) return;
+  document.getElementById("dialogTitle").textContent = `新增${editor.noun}`;
+  renderDialogFields(editor, null);
+  setAiFillVisible(!!editor.aiFillType);
+  openDialog({ kind, id: null, endpoint: `${kind}/add`, addMode: true });
+}
+
+function setAiFillVisible(show) {
+  document.getElementById("aiFillBtn").style.display = show ? "" : "none";
+}
+
+function closeEditor() {
+  document.getElementById("overlay").classList.remove("show");
+  state.editing = null;
+}
+
+async function aiFill() {
+  if (!state.editing) return;
+  const editor = EDITORS[state.editing.kind];
+  const input = document.querySelector(`#dialogFields [data-key="${editor.fillFrom}"]`);
+  const text = input ? input.value.trim() : "";
+  if (!text) { toast(`请先填写${editor.fillFrom === "word" ? "单词" : "句子"}`); return; }
+  const btn = document.getElementById("aiFillBtn");
+  btn.disabled = true;
+  btn.textContent = "🤖 生成中…";
+  try {
+    const res = await api(() => bridge.apiPost("ai_fill", { type: editor.aiFillType, text }));
+    for (const [k, v] of Object.entries(res.fields || {})) {
+      const el = document.querySelector(`#dialogFields [data-key="${k}"]`);
+      if (el && v) el.value = v;
+    }
+    toast("已填充，可修改后保存");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "🤖 AI 填充";
+  }
+}
+
+async function saveEditor() {
+  if (!state.editing) return;
+  const payload = {};
+  if (!state.editing.addMode) payload.id = state.editing.id;
+  document.querySelectorAll("#dialogFields [data-key]").forEach((el) => {
+    payload[el.dataset.key] = el.value;
+  });
+  await api(() => bridge.apiPost(state.editing.endpoint, payload));
+  closeEditor();
+  toast(state.editing.addMode ? "已新增" : "已保存");
+  loadTab();
+  loadStats();
+}
+
+// ==================== tab loading ====================
+
+const RENDERERS = { sentences: renderSentences, errors: renderErrors, vocab: renderVocab, practice: renderPractice, archive: renderArchive };
+
+async function loadTab() {
+  renderToolbar();
+  const tab = state.tab;
+  const page = state.page[tab];
+  const params = { page, page_size: PAGE_SIZE };
+  if (state.keyword) params.keyword = state.keyword;
+  if (state.date) params.date = state.date;
+  if (tab === "errors") params.status = state.errorStatus;
+
+  const content = document.getElementById("content");
+  content.innerHTML = `<div class="empty">加载中……</div>`;
+  const data = await api(() => bridge.apiGet(tab === "practice" ? "practice" : tab, params));
+  const total = data.total ?? data.items?.length ?? 0;
+  content.innerHTML = total ? RENDERERS[tab](data) : `<div class="empty">暂无数据</div>`;
+  bindActions();
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const pager = document.getElementById("pager");
+  pager.style.display = total > 0 ? "flex" : "none";
+  document.getElementById("pageInfo").textContent = `共 ${total} 条 · 第 ${page} / ${totalPages} 页`;
+  document.getElementById("prevBtn").disabled = page <= 1;
+  document.getElementById("nextBtn").disabled = page >= totalPages;
+}
+
+document.getElementById("prevBtn").onclick = () => { state.page[state.tab] = Math.max(1, state.page[state.tab] - 1); loadTab(); };
+document.getElementById("nextBtn").onclick = () => { state.page[state.tab] += 1; loadTab(); };
+
+document.querySelectorAll("#tabs .tab").forEach((el) => {
+  el.onclick = () => {
+    document.querySelectorAll("#tabs .tab").forEach((t) => t.classList.remove("active"));
+    el.classList.add("active");
+    state.tab = el.dataset.tab;
+    state.keyword = ""; state.date = ""; state.errorStatus = "all";
+    loadTab();
+  };
+});
+
+document.getElementById("dialogCancel").onclick = closeEditor;
+document.getElementById("dialogSave").onclick = saveEditor;
+document.getElementById("aiFillBtn").onclick = aiFill;
+document.getElementById("overlay").addEventListener("click", (e) => {
+  if (e.target === document.getElementById("overlay")) closeEditor();
+});
+
+const context = await bridge.ready();
+applyTheme(context.isDark);
+bridge.onContext((c) => applyTheme(c.isDark));
+await loadStats();
+await loadTab();
+</script>
+</body>
+</html>
