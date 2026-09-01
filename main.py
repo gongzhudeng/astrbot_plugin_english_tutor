@@ -138,7 +138,7 @@ def extract_json(text: str) -> dict[str, Any] | None:
     PLUGIN_NAME,
     "灵犀",
     "AI 英语私教：对话纠错、错误日记、句子收藏、单词本、对话存档、每日练习生成。",
-    "0.5.0",
+    "0.5.1",
 )
 class EnglishTutorPlugin(Star):
     """英语私教插件主类。"""
@@ -225,14 +225,36 @@ class EnglishTutorPlugin(Star):
 
     # ==================== english mode detection ====================
 
+    # Noise stripped before language detection: URLs (e.g. Douyin share links),
+    # HTML comments and XML/HTML tags (quoted-message / image-context wrappers
+    # injected by other plugins into the user message) would otherwise add
+    # "English" words and dilute the CJK ratio, making system text pass as
+    # English conversation.
+    _NOISE_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
+    _NOISE_URL = re.compile(r"(?:https?://|www\.)\S+", re.IGNORECASE)
+    _NOISE_TAG = re.compile(r"</?[A-Za-z][^>\n]{0,200}>")
     _ASCII_WORD = re.compile(r"[A-Za-z]{2,}")
     _CJK_CHAR = re.compile(r"[\u4e00-\u9fff]")
 
     @classmethod
     def _is_english_message(cls, text: str) -> bool:
-        """Rule-based check: at least 3 ASCII words and few CJK characters."""
+        """Rule-based check: at least 3 ASCII words and few CJK characters.
+
+        URLs, markup comments/tags and other plugin-injected wrappers are
+        stripped first so share links and system text are never mistaken for
+        English conversation.
+
+        Args:
+            text: The raw message text to inspect.
+
+        Returns:
+            True when the text looks like genuine English conversation.
+        """
         if not text:
             return False
+        text = cls._NOISE_COMMENT.sub(" ", text)
+        text = cls._NOISE_URL.sub(" ", text)
+        text = cls._NOISE_TAG.sub(" ", text)
         if len(cls._ASCII_WORD.findall(text)) < 3:
             return False
         cjk = len(cls._CJK_CHAR.findall(text))
@@ -331,9 +353,17 @@ class EnglishTutorPlugin(Star):
         if not reply:
             return
 
-        date = self._today()
+        # Only archive genuine English-practice rounds: Chinese chatter and
+        # system-injected prompts (scheduled auto-reply instructions, quoted
+        # message / image-context wrappers) must stay out of the archive. When
+        # only the reply is English, keep it but never the non-English text.
         user_text = (event.message_str or "").strip()
-        if user_text:
+        user_en = bool(user_text) and self._is_english_message(user_text)
+        if not user_en and not self._is_english_message(reply):
+            return
+
+        date = self._today()
+        if user_en:
             self.store.add_archive(umo, date, "user", user_text)
         self.store.add_archive(umo, date, "assistant", reply)
 

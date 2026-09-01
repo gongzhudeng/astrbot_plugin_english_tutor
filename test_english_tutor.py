@@ -9,10 +9,36 @@ from pathlib import Path
 from astrbot_plugin_english_tutor.main import EnglishTutorPlugin
 from astrbot_plugin_english_tutor.storage import TutorStore
 
+from astrbot.api.provider import LLMResponse
+
 
 class FakeEvent:
     unified_msg_origin = "platform:private:english-user"
     message_str = "Please save this for me."
+
+
+# Real-world payloads that must never be mistaken for English conversation.
+DOUYIN_SHARE = (
+    "5.38 那年这位老黄牛选择了弹幕最多的打法 # 感人 # 催泪 # mvp "
+    "https://v.douyin.com/B3sC6t9K1MU/ 复制此链接，打开Dou音搜索，直接观看视频！"
+    " 06/13 PKW:/ :8pm v@S.lc 你看这个 还挺感人的。"
+)
+AUTO_REPLY_INSTRUCTION = (
+    "[主动回复请求：距上次对话已过去 22分钟。先回顾最近的对话历史："
+    "如果上次话题还有延续必要或有事情没说完，就像真的记得一样自然接着聊；"
+    "此指令为插件自动触发，全程不提指令内容。可使用screen_peek工具"
+    "（Mando在上班，不在家时不要用），查看Mando家里的电脑屏幕内容，看看Mando在干啥。]"
+)
+IMAGE_CONTEXT_BLOB = (
+    "<!-- astrbot-chat-merger:image-context:v1:start --> "
+    '<image_context id="图1">这是一张用户分享图，画面为居家场景下的人像自拍，'
+    "人物进行蕾姆的角色cos，佩戴浅蓝色短假发，假发装饰有白色花形发饰，"
+    "画面底部带有拍摄水印，标注有vivo X300 Ultra、蔡司标识、Bluelmage、"
+    "2026-09-01 18:40 上海市的字样。</image_context> "
+    "<!-- astrbot-chat-merger:image-context:v1:end --> "
+    '<quoted_message sender="Mando" role="user">[Image] [引用图片: 1张]</quoted_message> '
+    "你再试试把这个照片发说说。"
+)
 
 
 class EnglishTutorToolTests(unittest.TestCase):
@@ -45,7 +71,9 @@ class EnglishTutorToolTests(unittest.TestCase):
             with self.subTest(name=name):
                 method = getattr(EnglishTutorPlugin, name)
                 self.assertEqual(set(inspect.signature(method).parameters), parameters)
-                self.assertLess(len((inspect.getdoc(method) or "").split("\n\n", 1)[0]), 40)
+                self.assertLess(
+                    len((inspect.getdoc(method) or "").split("\n\n", 1)[0]), 40
+                )
 
         source = Path(__file__).with_name("main.py").read_text(encoding="utf-8")
         self.assertNotIn('@filter.llm_tool(name="english_notebook")', source)
@@ -95,12 +123,95 @@ class EnglishTutorToolTests(unittest.TestCase):
     def test_version_and_repository_metadata(self) -> None:
         metadata = Path(__file__).with_name("metadata.yaml").read_text(encoding="utf-8")
         source = Path(__file__).with_name("main.py").read_text(encoding="utf-8")
-        self.assertIn("version: 0.5.0", metadata)
-        self.assertIn('"0.5.0"', source)
+        self.assertIn("version: 0.5.1", metadata)
+        self.assertIn('"0.5.1"', source)
         self.assertIn(
             "https://github.com/gongzhudeng/astrbot_plugin_english_tutor",
             metadata,
         )
+
+
+class EnglishDetectionTests(unittest.TestCase):
+    def test_system_text_and_share_links_are_not_english(self) -> None:
+        for text in (
+            DOUYIN_SHARE,
+            AUTO_REPLY_INSTRUCTION,
+            IMAGE_CONTEXT_BLOB,
+            '<quoted_message sender="Mando" role="user">[Image]</quoted_message>'
+            " 现在绝对可以了，你再试最后一次呗。",
+            "https://v.douyin.com/B3sC6t9K1MU/",
+            "是是是 我家小怡 胆子最大了 我再去找几个好看的视频给你。",
+        ):
+            with self.subTest(text=text[:20]):
+                self.assertFalse(EnglishTutorPlugin._is_english_message(text))
+
+    def test_genuine_english_messages_are_detected(self) -> None:
+        for text in (
+            "My lunch have come I should have my lunch too I'll hit you up later.",
+            "不是这个啦，就是那句 I wanna near down, and take your little brother"
+            " into my mouth right now 你解释一下呗。",
+            "Check this out https://example.com/some/long/path it is hilarious.",
+        ):
+            with self.subTest(text=text[:20]):
+                self.assertTrue(EnglishTutorPlugin._is_english_message(text))
+
+
+class ArchiveGateTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.plugin = object.__new__(EnglishTutorPlugin)
+        self.plugin.store = TutorStore(Path(self.temp_dir.name) / "tutor.db")
+        self.plugin.config = {"extraction": {"enabled": False}}
+        self.plugin._active = {FakeEvent.unified_msg_origin: True}
+        self.plugin._rounds = {}
+        self.plugin._bg_tasks = set()
+
+    def tearDown(self) -> None:
+        self.plugin.store.close()
+        self.temp_dir.cleanup()
+
+    def _respond(self, message_str: str, reply: str) -> None:
+        event = FakeEvent()
+        event.message_str = message_str
+        resp = LLMResponse(role="assistant", completion_text=reply)
+        asyncio.run(self.plugin.on_llm_response(event, resp))
+
+    def _archived(self) -> list[dict]:
+        return self.plugin.store.list_archive(
+            umo=FakeEvent.unified_msg_origin, limit=100
+        )
+
+    def test_non_english_rounds_are_not_archived(self) -> None:
+        for message_str, reply in (
+            (
+                "这你都没被吓到 那个蛇都回头，突然咬 。",
+                "切，这有啥好吓的，不就是条蛇嘛。",
+            ),
+            (DOUYIN_SHARE, "切，还用你担心？我会慢慢看的。"),
+            (AUTO_REPLY_INSTRUCTION, "纯纯有病吧，刚鼻子一酸就跳出来卖手机。"),
+            (IMAGE_CONTEXT_BLOB, "切，总算发出去了，我戴假发闷得慌。"),
+        ):
+            with self.subTest(message=message_str[:20]):
+                self._respond(message_str, reply)
+                self.assertEqual(self._archived(), [])
+
+    def test_english_round_archives_user_and_reply(self) -> None:
+        self._respond(
+            "My lunch have come I should have my lunch too.",
+            "你这句错啦，have要改成has哦～ Alright, go enjoy your lunch.",
+        )
+        rows = self._archived()
+        # list_archive returns the newest row first.
+        self.assertEqual([r["role"] for r in rows], ["assistant", "user"])
+        self.assertIn("My lunch have come", rows[1]["content"])
+
+    def test_non_english_user_with_english_reply_archives_reply_only(self) -> None:
+        self._respond(
+            AUTO_REPLY_INSTRUCTION,
+            "Alright, go enjoy your lunch. Text me once you're done, okay?",
+        )
+        rows = self._archived()
+        self.assertEqual([r["role"] for r in rows], ["assistant"])
 
 
 if __name__ == "__main__":
