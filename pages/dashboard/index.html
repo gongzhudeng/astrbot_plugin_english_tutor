@@ -105,6 +105,13 @@
   .msg-role { min-width: 42px; font-size: 12px; color: var(--muted); padding-top: 2px; }
   .msg-role.user { color: var(--accent); }
   .msg-content { flex: 1; }
+  .msg-row > .link { align-self: flex-start; visibility: hidden; }
+  .msg-row:hover > .link { visibility: visible; }
+  .msg-divider {
+    text-align: center; color: var(--muted); font-size: 12px; padding: 5px 0;
+    background: color-mix(in srgb, var(--accent-soft) 35%, var(--panel));
+    border-bottom: 1px solid var(--line);
+  }
 
   .pager { display: flex; align-items: center; gap: 10px; justify-content: flex-end; padding: 12px 14px; }
   .pager .info { color: var(--muted); font-size: 12.5px; }
@@ -285,7 +292,7 @@ function bindActions() {
 }
 
 async function removeRow(kind, id) {
-  const names = { sentences: "句子", errors: "错误", vocab: "单词", practice: "这期练习" };
+  const names = { sentences: "句子", errors: "错误", vocab: "单词", practice: "这期练习", archive: "存档消息" };
   if (!confirm(`确定删除这条${names[kind] || "记录"}吗？`)) return;
   await api(() => bridge.apiPost(`${kind}/delete`, { id }));
   toast("已删除");
@@ -370,16 +377,41 @@ function renderPractice(data) {
 
 // ---- archive ----
 
+// Messages flow newest-first; a gap larger than this many minutes between
+// neighbours marks a session boundary and gets a visible divider.
+const ARCHIVE_GAP_MINUTES = 10;
+
+function archiveGapLabel(minutes) {
+  if (minutes >= 1440) return `${Math.floor(minutes / 1440)} 天`;
+  if (minutes >= 60) return `${Math.floor(minutes / 60)} 小时`;
+  return `${minutes} 分钟`;
+}
+
 function renderArchive(data) {
   if (!data.items.length) return `<div class="empty">该日期没有英语对话存档。</div>`;
-  return data.items.map((m) => `
-    <div class="msg-row">
+  let html = "";
+  let prev = null; // the newer neighbour already rendered above
+  for (const m of data.items) {
+    if (prev) {
+      const gap = Math.round(
+        (new Date(prev.created_at.replace(" ", "T")) - new Date(m.created_at.replace(" ", "T"))) / 60000
+      );
+      if (gap >= ARCHIVE_GAP_MINUTES) {
+        html += `<div class="msg-divider">⏱ 间隔 ${archiveGapLabel(gap)} · 以下为另一段对话</div>`;
+      }
+    }
+    const time = String(m.created_at || "").slice(11, 16);
+    html += `<div class="msg-row">
       <div class="msg-role ${m.role === "user" ? "user" : ""}">${m.role === "user" ? "我" : "教练"}</div>
       <div class="msg-content">
         <span class="${m.role === "user" ? "en" : ""}">${esc(m.content)}</span>
-        <div class="muted">${esc(m.date)}</div>
+        <div class="muted">${time ? `${esc(time)} · ` : ""}${esc(m.date)}</div>
       </div>
-    </div>`).join("");
+      <button class="link danger" data-act="delete" data-kind="archive" data-id="${m.id}">删除</button>
+    </div>`;
+    prev = m;
+  }
+  return html;
 }
 
 // ==================== editor dialog ====================

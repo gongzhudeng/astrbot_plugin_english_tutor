@@ -215,6 +215,9 @@ class TutorStore:
         )
         return self._rows_to_dicts(rows)
 
+    def delete_archive(self, row_id: int) -> None:
+        self._run("DELETE FROM archive_messages WHERE id = ?", (row_id,))
+
     def archive_day_counts(self, days: int = 7) -> list[dict[str, Any]]:
         since = (datetime.now() - timedelta(days=days - 1)).strftime("%Y-%m-%d")
         rows = self._run(
@@ -231,6 +234,28 @@ class TutorStore:
         before = (datetime.now() - timedelta(days=keep_days)).strftime("%Y-%m-%d")
         cur = self._run("DELETE FROM archive_messages WHERE date < ?", (before,))
         return cur.rowcount if cur and cur.rowcount and cur.rowcount > 0 else 0
+
+    def cleanup_non_english_archive(self, is_english) -> int:
+        """Delete archived messages that fail the English check.
+
+        One-shot migration for archives recorded by older versions, which
+        stored share links and system-injected prompts as English rounds.
+
+        Args:
+            is_english: Predicate ``str -> bool`` deciding if content stays.
+
+        Returns:
+            The number of deleted rows.
+        """
+        rows = self._rows_to_dicts(
+            self._run("SELECT id, content FROM archive_messages", fetch_all=True)
+        )
+        removed = 0
+        for row in rows:
+            if not is_english(str(row["content"] or "")):
+                self._run("DELETE FROM archive_messages WHERE id = ?", (row["id"],))
+                removed += 1
+        return removed
 
     # ==================== errors ====================
 

@@ -246,6 +246,14 @@ def register_routes(plugin: EnglishTutorPlugin) -> None:
         total = store.count_archive(date=date, keyword=keyword)
         return json_response({"items": items, "total": total, "page": page})
 
+    async def delete_archive():
+        payload = await request.json(default={})
+        item_id = _int_field(payload, "id")
+        if not item_id:
+            return error_response("缺少 id", status_code=400)
+        store.delete_archive(item_id)
+        return json_response({"deleted": item_id})
+
     register(f"{PAGE_PREFIX}/stats", stats, ["GET"], "Tutor overview stats")
 
     register(f"{PAGE_PREFIX}/sentences", list_sentences, ["GET"], "List sentences")
@@ -288,3 +296,9 @@ def register_routes(plugin: EnglishTutorPlugin) -> None:
     )
 
     register(f"{PAGE_PREFIX}/archive", list_archive, ["GET"], "List archived messages")
+    register(
+        f"{PAGE_PREFIX}/archive/delete",
+        delete_archive,
+        ["POST"],
+        "Delete an archived message",
+    )

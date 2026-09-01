@@ -123,8 +123,8 @@ class EnglishTutorToolTests(unittest.TestCase):
     def test_version_and_repository_metadata(self) -> None:
         metadata = Path(__file__).with_name("metadata.yaml").read_text(encoding="utf-8")
         source = Path(__file__).with_name("main.py").read_text(encoding="utf-8")
-        self.assertIn("version: 0.5.1", metadata)
-        self.assertIn('"0.5.1"', source)
+        self.assertIn("version: 0.5.2", metadata)
+        self.assertIn('"0.5.2"', source)
         self.assertIn(
             "https://github.com/gongzhudeng/astrbot_plugin_english_tutor",
             metadata,
@@ -212,6 +212,40 @@ class ArchiveGateTests(unittest.TestCase):
         )
         rows = self._archived()
         self.assertEqual([r["role"] for r in rows], ["assistant"])
+
+    def test_cleanup_purges_junk_and_delete_removes_single_row(self) -> None:
+        store = self.plugin.store
+        umo = FakeEvent.unified_msg_origin
+        store.add_archive(umo, "2026-09-01", "user", DOUYIN_SHARE)
+        store.add_archive(umo, "2026-09-01", "user", AUTO_REPLY_INSTRUCTION)
+        store.add_archive(
+            umo, "2026-09-01", "assistant", "切，这有啥好吓的，不就是条蛇嘛。"
+        )
+        store.add_archive(
+            umo, "2026-09-01", "user", "My lunch have come I should have my lunch too."
+        )
+        store.add_archive(
+            umo,
+            "2026-09-01",
+            "assistant",
+            "你这句错啦，have要改成has哦～ Alright, go enjoy your lunch.",
+        )
+
+        removed = store.cleanup_non_english_archive(
+            EnglishTutorPlugin._is_english_message
+        )
+        self.assertEqual(removed, 3)
+        rows = store.list_archive(umo=umo, limit=100)
+        contents = {r["content"] for r in rows}
+        self.assertNotIn(DOUYIN_SHARE, contents)
+        self.assertNotIn(AUTO_REPLY_INSTRUCTION, contents)
+        self.assertIn("My lunch have come I should have my lunch too.", contents)
+        # Mixed correction replies stay: they carry the coaching feedback.
+        self.assertTrue(any("Alright, go enjoy your lunch." in c for c in contents))
+
+        # Row-level delete used by the WebUI archive tab.
+        store.delete_archive(rows[0]["id"])
+        self.assertEqual(store.count_archive(umo=umo), 1)
 
 
 if __name__ == "__main__":

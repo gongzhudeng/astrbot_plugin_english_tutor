@@ -138,7 +138,7 @@ def extract_json(text: str) -> dict[str, Any] | None:
     PLUGIN_NAME,
     "灵犀",
     "AI 英语私教：对话纠错、错误日记、句子收藏、单词本、对话存档、每日练习生成。",
-    "0.5.1",
+    "0.5.2",
 )
 class EnglishTutorPlugin(Star):
     """英语私教插件主类。"""
@@ -162,6 +162,15 @@ class EnglishTutorPlugin(Star):
     async def initialize(self) -> None:
         data_dir = StarTools.get_data_dir(PLUGIN_NAME)
         self.store = TutorStore(data_dir / "tutor.db")
+        # One-shot purge of rows recorded by pre-0.5.1 versions, which archived
+        # share links and system-injected prompts as English conversation.
+        if not await self.get_kv_data("archive_noise_cleaned", False):
+            removed = self.store.cleanup_non_english_archive(self._is_english_message)
+            if removed:
+                logger.info(
+                    f"[english_tutor] purged {removed} non-English archived rows"
+                )
+            await self.put_kv_data("archive_noise_cleaned", True)
         self._tutor_block = self._build_tutor_block()
         self._card_template = (PLUGIN_DIR / "templates" / "daily_card.html").read_text(
             encoding="utf-8"
