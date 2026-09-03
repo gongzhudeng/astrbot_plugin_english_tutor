@@ -4,10 +4,16 @@ from __future__ import annotations
 
 import asyncio
 import io
+import mimetypes
+import secrets
+import time
 import uuid
 import wave
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+from aiohttp import web
 
 from astrbot.api import logger
 
@@ -24,6 +30,97 @@ TTS_PLUGIN_NAMES = (
 )
 
 
+@dataclass(frozen=True)
+class _MediaTicket:
+    path: Path
+    mime_type: str
+    expires_at: float
+
+
+class _TutorMediaGateway:
+    """Serve ticket-bound tutor audio outside Dashboard authentication."""
+
+    def __init__(self, ttl_seconds: int = 30 * 60) -> None:
+        self._ttl_seconds = max(1, int(ttl_seconds))
+        self._tickets: dict[str, _MediaTicket] = {}
+        self._lock = asyncio.Lock()
+        self._runner: web.AppRunner | None = None
+        self._port: int | None = None
+        self._closed = False
+
+    async def issue_url(self, path: Path, mime_type: str = "") -> str:
+        resource = path.resolve(strict=True)
+        if not resource.is_file():
+            raise FileNotFoundError(resource)
+        async with self._lock:
+            if self._closed:
+                raise RuntimeError("Tutor media gateway is closed")
+            await self._ensure_started_locked()
+            self._remove_expired_locked()
+            ticket = secrets.token_urlsafe(32)
+            self._tickets[ticket] = _MediaTicket(
+                resource,
+                mime_type or mimetypes.guess_type(resource.name)[0] or "application/octet-stream",
+                time.monotonic() + self._ttl_seconds,
+            )
+            port = self._port
+        if port is None:
+            raise RuntimeError("Tutor media gateway did not expose a port")
+        return f"http://127.0.0.1:{port}/media/{ticket}"
+
+    async def stop(self) -> None:
+        async with self._lock:
+            self._closed = True
+            self._tickets.clear()
+            runner, self._runner = self._runner, None
+            self._port = None
+        if runner is not None:
+            await runner.cleanup()
+
+    async def _ensure_started_locked(self) -> None:
+        if self._runner is not None and self._port is not None:
+            return
+        app = web.Application()
+        app.router.add_get("/media/{ticket}", self._serve_media)
+        runner = web.AppRunner(app, access_log=None)
+        try:
+            await runner.setup()
+            site = web.TCPSite(runner, "127.0.0.1", 0)
+            await site.start()
+            server = site._server
+            sockets = server.sockets if server is not None else ()
+            if not sockets:
+                raise RuntimeError("Tutor media gateway did not expose a socket")
+        except BaseException:
+            await runner.cleanup()
+            raise
+        self._runner = runner
+        self._port = int(sockets[0].getsockname()[1])
+
+    async def _serve_media(self, request: web.Request) -> web.StreamResponse:
+        async with self._lock:
+            self._remove_expired_locked()
+            ticket = self._tickets.get(request.match_info.get("ticket", ""))
+        if ticket is None or not ticket.path.is_file():
+            raise web.HTTPNotFound()
+        return web.FileResponse(
+            ticket.path,
+            headers={
+                "Cache-Control": "no-store",
+                "Content-Type": ticket.mime_type,
+                "Cross-Origin-Resource-Policy": "cross-origin",
+                "Referrer-Policy": "no-referrer",
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
+
+    def _remove_expired_locked(self) -> None:
+        now = time.monotonic()
+        for ticket_id, ticket in list(self._tickets.items()):
+            if ticket.expires_at <= now:
+                self._tickets.pop(ticket_id, None)
+
+
 class TutorAudioManager:
     """Keep tutor-owned WAV files separate from the TTS plugin cache."""
 
@@ -38,6 +135,17 @@ class TutorAudioManager:
         self.audio_dir = audio_dir.resolve()
         self.audio_dir.mkdir(parents=True, exist_ok=True)
         self._locks: dict[tuple[str, int, int], asyncio.Lock] = {}
+        self.media_gateway = _TutorMediaGateway()
+
+    async def close(self) -> None:
+        await self.media_gateway.stop()
+
+    async def media_url(self, asset_id: int) -> str | None:
+        row = self.store.get_audio_asset_by_id(int(asset_id))
+        path = self.path_for_asset(row)
+        if path is None:
+            return None
+        return await self.media_gateway.issue_url(path, "audio/wav")
 
     def _lock_for(self, target: dict[str, Any]) -> asyncio.Lock:
         key = (

@@ -139,7 +139,7 @@ def extract_json(text: str) -> dict[str, Any] | None:
     PLUGIN_NAME,
     "灵犀",
     "AI 英语私教：对话纠错、错误日记、句子收藏、单词本、对话存档、每日练习生成。",
-    "0.6.2",
+    "0.6.3",
 )
 class EnglishTutorPlugin(Star):
     """英语私教插件主类。"""
@@ -199,10 +199,12 @@ class EnglishTutorPlugin(Star):
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
         self._bg_tasks.clear()
+        if self.audio_manager:
+            await self.audio_manager.close()
+        self.audio_manager = None
         if self.store:
             self.store.close()
             self.store = None
-        self.audio_manager = None
         logger.info("[english_tutor] plugin unloaded")
 
     # ==================== config helpers ====================

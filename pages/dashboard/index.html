@@ -342,7 +342,7 @@ function audioCell(kind, id, itemIndex, item) {
   const indexAttr = `data-index="${itemIndex}"`;
   let html = '<div class="audio-stack">';
   if (current) {
-    html += `<audio class="audio-player" controls preload="metadata" src="${esc(current.url)}"></audio>`;
+    html += `<audio class="audio-player" controls preload="metadata" data-audio-id="${current.id}" aria-label="播放音频"></audio>`;
   } else if (state.audioAvailable) {
     html += `<button class="audio-btn" data-act="audio-generate" data-kind="${kind}" data-id="${id}" ${indexAttr} title="生成音频" aria-label="生成音频">▶</button><span class="muted">未生成</span>`;
   } else {
@@ -352,9 +352,27 @@ function audioCell(kind, id, itemIndex, item) {
     html += `<button class="audio-btn" data-act="audio-regenerate" data-kind="${kind}" data-id="${id}" ${indexAttr} title="重新合成候选音频" aria-label="重新合成候选音频">↻</button>`;
   }
   if (candidate) {
-    html += `<div class="audio-candidate"><span class="muted">候选</span><audio class="audio-player" controls preload="metadata" src="${esc(candidate.url)}"></audio><button class="link audio-apply" data-act="audio-apply" data-kind="${kind}" data-id="${id}" ${indexAttr}>应用</button></div>`;
+    html += `<div class="audio-candidate"><span class="muted">候选</span><audio class="audio-player" controls preload="metadata" data-audio-id="${candidate.id}" aria-label="播放候选音频"></audio><button class="link audio-apply" data-act="audio-apply" data-kind="${kind}" data-id="${id}" ${indexAttr}>应用</button></div>`;
   }
   return html + '</div>';
+}
+
+async function hydrateAudioPlayers() {
+  const players = [...document.querySelectorAll("audio[data-audio-id]")];
+  await Promise.all(players.map(async (player) => {
+    const assetId = player.dataset.audioId;
+    if (!assetId || !player.isConnected) return;
+    try {
+      const result = await bridge.apiGet(`audio/ticket/${encodeURIComponent(assetId)}`);
+      const url = result?.url || result?.data?.url;
+      if (!url || !player.isConnected) throw new Error("audio ticket unavailable");
+      player.src = url;
+      player.load();
+    } catch {
+      player.removeAttribute("controls");
+      player.title = "音频加载失败，请刷新后重试";
+    }
+  }));
 }
 
 async function audioAction(act, kind, id, itemIndex) {
@@ -645,16 +663,17 @@ async function aiFill() {
 
 async function saveEditor() {
   if (!state.editing) return;
+  const editing = { ...state.editing };
   const payload = {};
-  if (!state.editing.addMode) payload.id = state.editing.id;
+  if (!editing.addMode) payload.id = editing.id;
   document.querySelectorAll("#dialogFields [data-key]").forEach((el) => {
     payload[el.dataset.key] = el.value;
   });
-  await api(() => bridge.apiPost(state.editing.endpoint, payload));
+  await api(() => bridge.apiPost(editing.endpoint, payload));
   closeEditor();
-  toast(state.editing.addMode ? "已新增" : "已保存");
-  loadTab();
-  loadStats();
+  toast(editing.addMode ? "已新增" : "已保存");
+  if (editing.addMode) state.page[editing.kind] = 1;
+  await Promise.all([loadTab(), loadStats()]);
 }
 
 // ==================== tab loading ====================
@@ -676,6 +695,7 @@ async function loadTab() {
   const total = data.total ?? data.items?.length ?? 0;
   content.innerHTML = total ? RENDERERS[tab](data) : `<div class="empty">暂无数据</div>`;
   bindActions();
+  await hydrateAudioPlayers();
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const pager = document.getElementById("pager");

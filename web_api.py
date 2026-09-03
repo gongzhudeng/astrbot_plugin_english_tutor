@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from astrbot.api import logger
 from astrbot.api.web import error_response, file_response, json_response, request
 
 if TYPE_CHECKING:
@@ -396,6 +397,23 @@ def register_routes(plugin: EnglishTutorPlugin) -> None:
             headers={"Cache-Control": "no-store"},
         )
 
+    async def audio_ticket(asset_id: str):
+        try:
+            parsed_id = int(asset_id)
+        except (TypeError, ValueError):
+            return error_response("audio not found", status_code=404)
+        manager = plugin.audio_manager
+        if manager is None:
+            return error_response("audio service unavailable", status_code=503)
+        try:
+            url = await manager.media_url(parsed_id)
+        except (FileNotFoundError, RuntimeError, OSError) as exc:
+            logger.warning("failed to issue tutor audio ticket for %s: %s", parsed_id, exc)
+            return error_response("audio not found", status_code=404)
+        if not url:
+            return error_response("audio not found", status_code=404)
+        return json_response({"url": url})
+
     register(f"{PAGE_PREFIX}/stats", stats, ["GET"], "Tutor overview stats")
 
     register(f"{PAGE_PREFIX}/sentences", list_sentences, ["GET"], "List sentences")
@@ -475,4 +493,10 @@ def register_routes(plugin: EnglishTutorPlugin) -> None:
         audio_file,
         ["GET"],
         "Serve tutor audio",
+    )
+    register(
+        f"{PAGE_PREFIX}/audio/ticket/<asset_id>",
+        audio_ticket,
+        ["GET"],
+        "Issue tutor audio playback URL",
     )
