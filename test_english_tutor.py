@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from astrbot_plugin_english_tutor.audio import TutorAudioManager
 from astrbot_plugin_english_tutor.main import EnglishTutorPlugin
 from astrbot_plugin_english_tutor.storage import TutorStore
 
@@ -123,12 +124,38 @@ class EnglishTutorToolTests(unittest.TestCase):
     def test_version_and_repository_metadata(self) -> None:
         metadata = Path(__file__).with_name("metadata.yaml").read_text(encoding="utf-8")
         source = Path(__file__).with_name("main.py").read_text(encoding="utf-8")
-        self.assertIn("version: 0.6.0", metadata)
-        self.assertIn('"0.6.0"', source)
+        self.assertIn("version: 0.6.1", metadata)
+        self.assertIn('"0.6.1"', source)
         self.assertIn(
             "https://github.com/gongzhudeng/astrbot_plugin_english_tutor",
             metadata,
         )
+
+    def test_audio_finds_tts_by_plugin_directory_name(self) -> None:
+        class FakeTTS:
+            async def synthesize_for_plugin(self, text: str, **kwargs):
+                return text, kwargs
+
+        class Metadata:
+            name = "鐏电妧 路 GPT-SoVITS 璇煶鍚堟垚"
+            root_dir_name = "astrbot_plugin_lingxi_gpt_sovits"
+            plugin_id = "鐏电妧/鐏电妧 路 gpt-sovits 璇煶鍚堟垚"
+            activated = True
+            star_cls = FakeTTS()
+
+        plugin = object.__new__(EnglishTutorPlugin)
+        plugin.context = type(
+            "Context",
+            (),
+            {"get_registered_star": lambda self, name: None,
+             "get_all_stars": lambda self: [Metadata()]},
+        )()
+        plugin._cfg = lambda *args: True
+        with tempfile.TemporaryDirectory() as temp_dir:
+            store = TutorStore(Path(temp_dir) / "tutor.db")
+            manager = TutorAudioManager(plugin, store, Path(temp_dir) / "audio")
+            self.assertIsNotNone(manager._tts_plugin())
+            store.close()
 
 
 class EnglishDetectionTests(unittest.TestCase):

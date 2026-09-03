@@ -75,16 +75,41 @@ class TutorAudioManager:
         }
 
     def _tts_plugin(self) -> Any | None:
-        getter = getattr(self.plugin.context, "get_registered_star", None)
-        if not callable(getter):
-            return None
-        for name in TTS_PLUGIN_NAMES:
+        context = getattr(self.plugin, "context", None)
+        getter = getattr(context, "get_registered_star", None)
+        candidates: list[Any] = []
+        if callable(getter):
+            for name in TTS_PLUGIN_NAMES:
+                try:
+                    metadata = getter(name)
+                except Exception:
+                    continue
+                if metadata is not None:
+                    candidates.append(metadata)
+
+        # AstrBot's lookup is exact against metadata.name, while plugin
+        # directories and legacy manifests commonly use a different name.
+        # Fall back to the complete registry so integrations survive either
+        # naming scheme.
+        all_stars = getattr(context, "get_all_stars", None)
+        if callable(all_stars):
             try:
-                metadata = getter(name)
+                candidates.extend(all_stars() or [])
             except Exception:
+                pass
+
+        wanted = {name.casefold() for name in TTS_PLUGIN_NAMES}
+        for metadata in candidates:
+            values = {
+                str(getattr(metadata, key, "") or "").strip().casefold()
+                for key in ("name", "root_dir_name", "module_path", "plugin_id")
+            }
+            if not values.intersection(wanted):
+                continue
+            if getattr(metadata, "activated", True) is False:
                 continue
             instance = getattr(metadata, "star_cls", None)
-            if instance is not None:
+            if callable(getattr(instance, "synthesize_for_plugin", None)):
                 return instance
         return None
 
