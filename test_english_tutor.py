@@ -123,8 +123,8 @@ class EnglishTutorToolTests(unittest.TestCase):
     def test_version_and_repository_metadata(self) -> None:
         metadata = Path(__file__).with_name("metadata.yaml").read_text(encoding="utf-8")
         source = Path(__file__).with_name("main.py").read_text(encoding="utf-8")
-        self.assertIn("version: 0.5.2", metadata)
-        self.assertIn('"0.5.2"', source)
+        self.assertIn("version: 0.6.0", metadata)
+        self.assertIn('"0.6.0"', source)
         self.assertIn(
             "https://github.com/gongzhudeng/astrbot_plugin_english_tutor",
             metadata,

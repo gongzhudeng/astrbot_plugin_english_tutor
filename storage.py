@@ -82,6 +82,22 @@ CREATE TABLE IF NOT EXISTS daily_practice (
     created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_practice_date ON daily_practice(date);
+
+CREATE TABLE IF NOT EXISTS audio_assets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    owner_type TEXT NOT NULL,
+    owner_id INTEGER NOT NULL,
+    item_index INTEGER NOT NULL DEFAULT -1,
+    text TEXT NOT NULL,
+    file_name TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'current',
+    emotion_mode TEXT NOT NULL DEFAULT 'default',
+    emotion TEXT NOT NULL DEFAULT '',
+    role TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_audio_owner
+    ON audio_assets(owner_type, owner_id, item_index, status);
 """
 
 
@@ -399,7 +415,7 @@ class TutorStore:
         tags: str = "",
         context: str = "",
         dialog: str = "",
-    ) -> None:
+    ) -> int:
         exists = self._run(
             "SELECT id FROM sentences WHERE (umo = ? OR umo = '')"
             " AND LOWER(sentence) = LOWER(?) LIMIT 1",
@@ -407,12 +423,14 @@ class TutorStore:
             fetch_one=True,
         )
         if exists:
-            return
+            return int(exists["id"])
         self._run(
             "INSERT INTO sentences (umo, date, sentence, note, source, tags, context, dialog)"
             " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             (umo, date, sentence, note, source, tags, context, dialog),
         )
+        row = self._run("SELECT last_insert_rowid() AS id", fetch_one=True)
+        return int(row["id"]) if row else 0
 
     def list_sentences(
         self,
@@ -483,6 +501,14 @@ class TutorStore:
     def delete_sentence(self, sentence_id: int) -> None:
         self._run("DELETE FROM sentences WHERE id = ?", (sentence_id,))
 
+    def get_sentence(self, sentence_id: int) -> dict[str, Any] | None:
+        row = self._run(
+            "SELECT * FROM sentences WHERE id = ? LIMIT 1",
+            (sentence_id,),
+            fetch_one=True,
+        )
+        return dict(row) if row else None
+
     # ==================== vocab ====================
 
     def add_vocab(
@@ -495,7 +521,7 @@ class TutorStore:
         source: str = "ai",
         context: str = "",
         dialog: str = "",
-    ) -> None:
+    ) -> int:
         self._run(
             "INSERT INTO vocab (umo, date, word, meaning, example, source, next_review, interval_days, context, dialog)"
             " VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)"
@@ -506,6 +532,12 @@ class TutorStore:
             " dialog = CASE WHEN excluded.dialog != '' THEN excluded.dialog ELSE vocab.dialog END",
             (umo, date, word, meaning, example, source, date, context, dialog),
         )
+        row = self._run(
+            "SELECT id FROM vocab WHERE umo = ? AND LOWER(word) = LOWER(?) LIMIT 1",
+            (umo, word),
+            fetch_one=True,
+        )
+        return int(row["id"]) if row else 0
 
     def list_vocab(
         self,
@@ -586,6 +618,14 @@ class TutorStore:
     def delete_vocab(self, vocab_id: int) -> None:
         self._run("DELETE FROM vocab WHERE id = ?", (vocab_id,))
 
+    def get_vocab(self, vocab_id: int) -> dict[str, Any] | None:
+        row = self._run(
+            "SELECT * FROM vocab WHERE id = ? LIMIT 1",
+            (vocab_id,),
+            fetch_one=True,
+        )
+        return dict(row) if row else None
+
     # ==================== daily practice ====================
 
     def save_daily(
@@ -608,6 +648,21 @@ class TutorStore:
         row = self._run(
             "SELECT * FROM daily_practice WHERE date = ? LIMIT 1",
             (date,),
+            fetch_one=True,
+        )
+        if not row:
+            return None
+        data = dict(row)
+        try:
+            data["items"] = json.loads(data.pop("items_json"))
+        except (TypeError, ValueError):
+            data["items"] = []
+        return data
+
+    def get_daily_by_id(self, daily_id: int) -> dict[str, Any] | None:
+        row = self._run(
+            "SELECT * FROM daily_practice WHERE id = ? LIMIT 1",
+            (daily_id,),
             fetch_one=True,
         )
         if not row:
@@ -644,6 +699,114 @@ class TutorStore:
     def count_daily(self) -> int:
         row = self._run("SELECT COUNT(*) AS c FROM daily_practice", fetch_one=True)
         return int(row["c"]) if row else 0
+
+    # ==================== audio assets ====================
+
+    def get_audio_asset(
+        self,
+        owner_type: str,
+        owner_id: int,
+        item_index: int = -1,
+        status: str = "current",
+    ) -> dict[str, Any] | None:
+        row = self._run(
+            "SELECT * FROM audio_assets"
+            " WHERE owner_type = ? AND owner_id = ? AND item_index = ? AND status = ?"
+            " ORDER BY id DESC LIMIT 1",
+            (owner_type, owner_id, item_index, status),
+            fetch_one=True,
+        )
+        return dict(row) if row else None
+
+    def get_audio_asset_by_id(self, asset_id: int) -> dict[str, Any] | None:
+        row = self._run(
+            "SELECT * FROM audio_assets WHERE id = ? LIMIT 1",
+            (asset_id,),
+            fetch_one=True,
+        )
+        return dict(row) if row else None
+
+    def list_audio_assets(
+        self,
+        owner_type: str,
+        owner_id: int,
+        item_index: int | None = None,
+    ) -> list[dict[str, Any]]:
+        sql = (
+            "SELECT * FROM audio_assets WHERE owner_type = ? AND owner_id = ?"
+        )
+        params: list[Any] = [owner_type, owner_id]
+        if item_index is not None:
+            sql += " AND item_index = ?"
+            params.append(item_index)
+        sql += " ORDER BY id DESC"
+        return self._rows_to_dicts(self._run(sql, tuple(params), fetch_all=True))
+
+    def add_audio_asset(
+        self,
+        owner_type: str,
+        owner_id: int,
+        item_index: int,
+        text: str,
+        file_name: str,
+        status: str = "current",
+        emotion_mode: str = "default",
+        emotion: str = "",
+        role: str = "",
+    ) -> int:
+        self._run(
+            "INSERT INTO audio_assets "
+            "(owner_type, owner_id, item_index, text, file_name, status, "
+            "emotion_mode, emotion, role, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                owner_type,
+                owner_id,
+                item_index,
+                text,
+                file_name,
+                status,
+                emotion_mode,
+                emotion,
+                role,
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            ),
+        )
+        row = self._run("SELECT last_insert_rowid() AS id", fetch_one=True)
+        return int(row["id"]) if row else 0
+
+    def delete_audio_asset(self, asset_id: int) -> dict[str, Any] | None:
+        row = self._run(
+            "SELECT * FROM audio_assets WHERE id = ? LIMIT 1",
+            (asset_id,),
+            fetch_one=True,
+        )
+        if not row:
+            return None
+        data = dict(row)
+        self._run("DELETE FROM audio_assets WHERE id = ?", (asset_id,))
+        return data
+
+    def delete_audio_assets(
+        self,
+        owner_type: str,
+        owner_id: int,
+        item_index: int | None = None,
+        status: str | None = None,
+    ) -> list[dict[str, Any]]:
+        rows = self.list_audio_assets(owner_type, owner_id, item_index)
+        selected = [row for row in rows if status is None or row["status"] == status]
+        if not selected:
+            return []
+        ids = [int(row["id"]) for row in selected]
+        placeholders = ",".join("?" for _ in ids)
+        self._run(f"DELETE FROM audio_assets WHERE id IN ({placeholders})", tuple(ids))
+        return selected
+
+    def set_audio_status(self, asset_id: int, status: str) -> None:
+        self._run(
+            "UPDATE audio_assets SET status = ? WHERE id = ?",
+            (status, asset_id),
+        )
 
     # ==================== overview ====================
 

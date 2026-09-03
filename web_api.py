@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from astrbot.api.web import error_response, json_response, request
+from astrbot.api.web import error_response, file_response, json_response, request
 
 if TYPE_CHECKING:
     from .main import EnglishTutorPlugin
@@ -31,6 +31,40 @@ def _int_field(payload: dict[str, Any], key: str) -> int | None:
         return int(payload.get(key))
     except (TypeError, ValueError):
         return None
+
+
+def _audio_settings(plugin: EnglishTutorPlugin, payload: dict[str, Any]) -> dict[str, str]:
+    manager = getattr(plugin, "audio_manager", None)
+    defaults = manager.default_settings() if manager else {
+        "emotion_mode": "default",
+        "emotion": "",
+        "role": "",
+    }
+    mode = str(payload.get("emotion_mode", defaults["emotion_mode"]) or "default")
+    mode = mode.strip().lower()
+    if mode not in {"default", "auto", "specified"}:
+        mode = defaults["emotion_mode"]
+    return {
+        "emotion_mode": mode,
+        "emotion": str(payload.get("emotion", defaults["emotion"]) or "").strip(),
+        "role": str(payload.get("role", defaults["role"]) or "").strip(),
+    }
+
+
+def _audio_target(
+    plugin: EnglishTutorPlugin, payload: dict[str, Any]
+) -> tuple[dict[str, Any] | None, str]:
+    manager = getattr(plugin, "audio_manager", None)
+    if manager is None:
+        return None, "音频功能未初始化"
+    item_id = _int_field(payload, "id")
+    if not item_id:
+        return None, "缺少 id"
+    item_index = _int_field(payload, "item_index")
+    if item_index is None:
+        item_index = -1
+    target = manager.target(str(payload.get("kind") or ""), item_id, item_index)
+    return (target, "") if target else (None, "记录不存在或练习条目无效")
 
 
 def register_routes(plugin: EnglishTutorPlugin) -> None:
@@ -58,6 +92,10 @@ def register_routes(plugin: EnglishTutorPlugin) -> None:
         items = store.list_sentences(
             date=date, keyword=keyword, limit=page_size, offset=offset
         )
+        manager = getattr(plugin, "audio_manager", None)
+        if manager:
+            for item in items:
+                manager.attach(item, "sentence", int(item["id"]))
         total = store.count_sentences(date=date, keyword=keyword)
         return json_response({"items": items, "total": total, "page": page})
 
@@ -72,6 +110,9 @@ def register_routes(plugin: EnglishTutorPlugin) -> None:
             if k in payload
         }
         store.update_sentence(item_id, fields)
+        updated = store.get_sentence(item_id)
+        if updated:
+            plugin._schedule_audio("sentence", item_id, str(updated.get("sentence") or ""))
         return json_response({"updated": item_id})
 
     async def delete_sentence():
@@ -79,6 +120,9 @@ def register_routes(plugin: EnglishTutorPlugin) -> None:
         item_id = _int_field(payload, "id")
         if not item_id:
             return error_response("缺少 id", status_code=400)
+        manager = getattr(plugin, "audio_manager", None)
+        if manager:
+            manager.delete_owner("sentence", item_id)
         store.delete_sentence(item_id)
         return json_response({"deleted": item_id})
 
@@ -87,7 +131,7 @@ def register_routes(plugin: EnglishTutorPlugin) -> None:
         sentence = str(payload.get("sentence", "")).strip()
         if not sentence:
             return error_response("句子不能为空", status_code=400)
-        store.add_sentence(
+        sentence_id = store.add_sentence(
             "",
             plugin._today(),
             sentence,
@@ -97,7 +141,8 @@ def register_routes(plugin: EnglishTutorPlugin) -> None:
             str(payload.get("context", "")).strip(),
             str(payload.get("dialog", "")).strip(),
         )
-        return json_response({"added": sentence})
+        plugin._schedule_audio("sentence", sentence_id, sentence)
+        return json_response({"added": sentence, "id": sentence_id})
 
     # ---------- errors ----------
 
@@ -159,6 +204,10 @@ def register_routes(plugin: EnglishTutorPlugin) -> None:
         page, offset, page_size = _paging()
         keyword = str(request.query.get("keyword", ""))
         items = store.list_vocab(keyword=keyword, limit=page_size, offset=offset)
+        manager = getattr(plugin, "audio_manager", None)
+        if manager:
+            for item in items:
+                manager.attach(item, "vocab", int(item["id"]))
         total = store.count_vocab(keyword=keyword)
         return json_response({"items": items, "total": total, "page": page})
 
@@ -173,6 +222,9 @@ def register_routes(plugin: EnglishTutorPlugin) -> None:
             if k in payload
         }
         store.update_vocab(item_id, fields)
+        updated = store.get_vocab(item_id)
+        if updated:
+            plugin._schedule_audio("vocab", item_id, str(updated.get("word") or ""))
         return json_response({"updated": item_id})
 
     async def delete_vocab():
@@ -180,6 +232,9 @@ def register_routes(plugin: EnglishTutorPlugin) -> None:
         item_id = _int_field(payload, "id")
         if not item_id:
             return error_response("缺少 id", status_code=400)
+        manager = getattr(plugin, "audio_manager", None)
+        if manager:
+            manager.delete_owner("vocab", item_id)
         store.delete_vocab(item_id)
         return json_response({"deleted": item_id})
 
@@ -189,7 +244,7 @@ def register_routes(plugin: EnglishTutorPlugin) -> None:
         if not word:
             return error_response("单词不能为空", status_code=400)
         today = plugin._today()
-        store.add_vocab(
+        vocab_id = store.add_vocab(
             "",
             today,
             word,
@@ -199,7 +254,8 @@ def register_routes(plugin: EnglishTutorPlugin) -> None:
             str(payload.get("context", "")).strip(),
             str(payload.get("dialog", "")).strip(),
         )
-        return json_response({"added": word})
+        plugin._schedule_audio("vocab", vocab_id, word)
+        return json_response({"added": word, "id": vocab_id})
 
     # ---------- ai fill ----------
 
@@ -223,6 +279,12 @@ def register_routes(plugin: EnglishTutorPlugin) -> None:
     async def list_practice():
         page, offset, page_size = _paging(30)
         items = store.list_daily(limit=page_size, offset=offset)
+        manager = getattr(plugin, "audio_manager", None)
+        if manager:
+            for practice in items:
+                for index, item in enumerate(practice.get("items") or []):
+                    if isinstance(item, dict):
+                        manager.attach(item, "practice", int(practice["id"]), index)
         total = store.count_daily()
         return json_response({"items": items, "total": total, "page": page})
 
@@ -231,6 +293,9 @@ def register_routes(plugin: EnglishTutorPlugin) -> None:
         item_id = _int_field(payload, "id")
         if not item_id:
             return error_response("缺少 id", status_code=400)
+        manager = getattr(plugin, "audio_manager", None)
+        if manager:
+            manager.delete_owner("practice", item_id)
         store.delete_daily(item_id)
         return json_response({"deleted": item_id})
 
@@ -253,6 +318,84 @@ def register_routes(plugin: EnglishTutorPlugin) -> None:
             return error_response("缺少 id", status_code=400)
         store.delete_archive(item_id)
         return json_response({"deleted": item_id})
+
+    # ---------- audio integration ----------
+
+    async def audio_options():
+        manager = getattr(plugin, "audio_manager", None)
+        if manager is None:
+            return json_response({"available": False, "enabled": False})
+        return json_response(manager.options())
+
+    async def audio_generate():
+        payload = await request.json(default={})
+        target, error = _audio_target(plugin, payload or {})
+        if error:
+            return error_response(error, status_code=400)
+        manager = plugin.audio_manager
+        assert manager is not None and target is not None
+        asset, generation_error = await manager.generate(
+            target, settings=_audio_settings(plugin, payload or {})
+        )
+        if not asset:
+            return error_response(generation_error or "音频生成失败", status_code=502)
+        return json_response({"audio": asset})
+
+    async def audio_regenerate():
+        payload = await request.json(default={})
+        target, error = _audio_target(plugin, payload or {})
+        if error:
+            return error_response(error, status_code=400)
+        manager = plugin.audio_manager
+        assert manager is not None and target is not None
+        asset, generation_error = await manager.regenerate(
+            target, settings=_audio_settings(plugin, payload or {})
+        )
+        if not asset:
+            return error_response(generation_error or "候选音频生成失败", status_code=502)
+        return json_response({"audio": asset})
+
+    async def audio_apply():
+        payload = await request.json(default={})
+        target, error = _audio_target(plugin, payload or {})
+        if error:
+            return error_response(error, status_code=400)
+        manager = plugin.audio_manager
+        assert manager is not None and target is not None
+        asset, apply_error = await manager.apply(target)
+        if not asset:
+            return error_response(apply_error or "候选音频应用失败", status_code=409)
+        return json_response({"audio": asset})
+
+    async def audio_batch():
+        payload = await request.json(default={})
+        payload = payload or {}
+        kind = str(payload.get("kind") or "all")
+        try:
+            limit = max(1, min(200, int(payload.get("limit", 200))))
+        except (TypeError, ValueError):
+            limit = 200
+        manager = plugin.audio_manager
+        if manager is None:
+            return error_response("音频功能未初始化", status_code=503)
+        result = await manager.batch(kind, limit)
+        return json_response(result)
+
+    async def audio_file(asset_id: str):
+        try:
+            parsed_id = int(asset_id)
+        except (TypeError, ValueError):
+            return error_response("音频不存在", status_code=404)
+        manager = plugin.audio_manager
+        path = manager.file_path(parsed_id) if manager else None
+        if path is None:
+            return error_response("音频不存在", status_code=404)
+        return file_response(
+            path,
+            filename=path.name,
+            content_type="audio/wav",
+            headers={"Cache-Control": "no-store"},
+        )
 
     register(f"{PAGE_PREFIX}/stats", stats, ["GET"], "Tutor overview stats")
 
@@ -301,4 +444,36 @@ def register_routes(plugin: EnglishTutorPlugin) -> None:
         delete_archive,
         ["POST"],
         "Delete an archived message",
+    )
+
+    register(f"{PAGE_PREFIX}/audio/options", audio_options, ["GET"], "Audio options")
+    register(
+        f"{PAGE_PREFIX}/audio/generate",
+        audio_generate,
+        ["POST"],
+        "Generate current audio",
+    )
+    register(
+        f"{PAGE_PREFIX}/audio/regenerate",
+        audio_regenerate,
+        ["POST"],
+        "Generate candidate audio",
+    )
+    register(
+        f"{PAGE_PREFIX}/audio/apply",
+        audio_apply,
+        ["POST"],
+        "Apply candidate audio",
+    )
+    register(
+        f"{PAGE_PREFIX}/audio/batch",
+        audio_batch,
+        ["POST"],
+        "Batch generate missing audio",
+    )
+    register(
+        f"{PAGE_PREFIX}/audio/file/<asset_id>",
+        audio_file,
+        ["GET"],
+        "Serve tutor audio",
     )

@@ -175,6 +175,64 @@
       }
     }
   },
+  "audio": {
+    "type": "object",
+    "description": "语音合成联动",
+    "items": {
+      "enabled": {
+        "type": "bool",
+        "default": true,
+        "description": "启用英语学习音频",
+        "hint": "需要同时启用语音合成插件。关闭后不会在收藏或每日练习生成时自动合成。"
+      },
+      "sentences_enabled": {
+        "type": "bool",
+        "default": true,
+        "description": "收藏句子自动合成",
+        "hint": "手动收藏、自动提取和 WebUI 新增/编辑句子时生成音频。"
+      },
+      "vocab_enabled": {
+        "type": "bool",
+        "default": true,
+        "description": "单词自动合成",
+        "hint": "收录单词或短语时生成音频。"
+      },
+      "daily_enabled": {
+        "type": "bool",
+        "default": true,
+        "description": "每日练习自动合成",
+        "hint": "每日练习生成时按条目生成音频。"
+      },
+      "daily_push_mode": {
+        "type": "string",
+        "default": "none",
+        "options": ["none", "each", "combined"],
+        "labels": ["不发送音频", "每条一个文件", "合并一个文件"],
+        "description": "每日推送音频",
+        "hint": "推送音频使用文件附件；合并模式会先逐条合成，再合并 WAV。"
+      },
+      "role": {
+        "type": "string",
+        "default": "",
+        "description": "默认语音角色",
+        "hint": "填写语音合成插件中已保存的角色名称；留空沿用当前角色。"
+      },
+      "emotion_mode": {
+        "type": "string",
+        "default": "default",
+        "options": ["default", "auto", "specified"],
+        "labels": ["沿用插件逻辑", "自动判断", "指定情感"],
+        "description": "默认情感模式",
+        "hint": "沿用插件逻辑会使用其当前的关键词/LLM 设置；自动判断使用其情感判断流程。"
+      },
+      "emotion": {
+        "type": "string",
+        "default": "",
+        "description": "默认指定情感",
+        "hint": "仅在情感模式为“指定情感”时生效，名称从语音合成插件的情感条目中选择。"
+      }
+    }
+  },
   "ai_fill": {
     "type": "object",
     "description": "AI 一键填充（WebUI 新增/编辑弹窗）",

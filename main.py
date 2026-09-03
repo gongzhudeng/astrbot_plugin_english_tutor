@@ -28,6 +28,7 @@ from astrbot.api.star import Context, Star, StarTools, register
 from astrbot.core.agent.message import TextPart
 
 from . import web_api
+from .audio import TutorAudioManager
 from .storage import TutorStore
 
 PLUGIN_NAME = "astrbot_plugin_english_tutor"
@@ -138,7 +139,7 @@ def extract_json(text: str) -> dict[str, Any] | None:
     PLUGIN_NAME,
     "灵犀",
     "AI 英语私教：对话纠错、错误日记、句子收藏、单词本、对话存档、每日练习生成。",
-    "0.5.2",
+    "0.6.0",
 )
 class EnglishTutorPlugin(Star):
     """英语私教插件主类。"""
@@ -153,6 +154,7 @@ class EnglishTutorPlugin(Star):
         self._rounds: dict[str, int] = {}
         self._daily_task: asyncio.Task | None = None
         self._bg_tasks: set[asyncio.Task] = set()
+        self.audio_manager: TutorAudioManager | None = None
         self._tutor_block = ""
         self._card_template = ""
         self._stats_template = ""
@@ -162,6 +164,7 @@ class EnglishTutorPlugin(Star):
     async def initialize(self) -> None:
         data_dir = StarTools.get_data_dir(PLUGIN_NAME)
         self.store = TutorStore(data_dir / "tutor.db")
+        self.audio_manager = TutorAudioManager(self, self.store, data_dir / "audio")
         # One-shot purge of rows recorded by pre-0.5.1 versions, which archived
         # share links and system-injected prompts as English conversation.
         if not await self.get_kv_data("archive_noise_cleaned", False):
@@ -190,9 +193,16 @@ class EnglishTutorPlugin(Star):
             except (asyncio.CancelledError, Exception):
                 pass
             self._daily_task = None
+        tasks = list(self._bg_tasks)
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        self._bg_tasks.clear()
         if self.store:
             self.store.close()
             self.store = None
+        self.audio_manager = None
         logger.info("[english_tutor] plugin unloaded")
 
     # ==================== config helpers ====================
@@ -209,6 +219,91 @@ class EnglishTutorPlugin(Star):
         task = asyncio.create_task(coro)
         self._bg_tasks.add(task)
         task.add_done_callback(self._bg_tasks.discard)
+
+    def _schedule_audio(
+        self,
+        owner_type: str,
+        owner_id: int,
+        text: str,
+        item_index: int = -1,
+    ) -> None:
+        manager = getattr(self, "audio_manager", None)
+        if not manager or not owner_id or not str(text or "").strip():
+            return
+        target = {
+            "owner_type": owner_type,
+            "owner_id": int(owner_id),
+            "item_index": int(item_index),
+            "text": str(text).strip(),
+        }
+        if not manager.category_enabled(owner_type):
+            return
+        self._spawn(manager.ensure(target))
+
+    async def _generate_daily_audio(self, practice: dict[str, Any]) -> None:
+        manager = getattr(self, "audio_manager", None)
+        if not manager or not manager.category_enabled("practice"):
+            return
+        daily_id = int(practice.get("id") or 0)
+        for index, item in enumerate(practice.get("items") or []):
+            text = str((item or {}).get("en") or "").strip()
+            if not text or not daily_id:
+                continue
+            await manager.ensure(
+                {
+                    "owner_type": "practice",
+                    "owner_id": daily_id,
+                    "item_index": index,
+                    "text": text,
+                }
+            )
+
+    async def _send_daily_audio(self, destination: str, practice: dict[str, Any]) -> bool:
+        manager = getattr(self, "audio_manager", None)
+        if not manager or not destination:
+            return False
+        mode = str(self._cfg("audio", "daily_push_mode", "none") or "none").lower()
+        if mode not in {"each", "combined"}:
+            return False
+        await self._generate_daily_audio(practice)
+        paths: list[Path] = []
+        daily_id = int(practice.get("id") or 0)
+        for index, item in enumerate(practice.get("items") or []):
+            text = str((item or {}).get("en") or "").strip()
+            if not text or not daily_id:
+                continue
+            path = manager.asset_path_for_target(
+                {
+                    "owner_type": "practice",
+                    "owner_id": daily_id,
+                    "item_index": index,
+                    "text": text,
+                }
+            )
+            if path:
+                paths.append(path)
+        if not paths:
+            return False
+        if mode == "each":
+            for index, path in enumerate(paths, 1):
+                await self.context.send_message(
+                    destination,
+                    MessageChain(
+                        chain=[Comp.File(name=f"english_practice_{index}.wav", file=str(path))]
+                    ),
+                )
+            return True
+        output = manager.audio_dir / f"daily_{practice.get('date', 'practice')}_combined.wav"
+        merged = manager.merge_wav(paths, output)
+        if not merged:
+            return False
+        await self.context.send_message(
+            destination,
+            MessageChain(
+                chain=[Comp.File(name=merged.name, file=str(merged))]
+            ),
+        )
+        return True
 
     def _build_tutor_block(self) -> str:
         difficulty = self._cfg("tutor", "difficulty", "B1 中级")
@@ -580,7 +675,7 @@ class EnglishTutorPlugin(Star):
         for item in data.get("sentences") or []:
             sentence = str(item.get("sentence") or "").strip()
             if sentence:
-                self.store.add_sentence(
+                sentence_id = self.store.add_sentence(
                     umo,
                     today,
                     sentence,
@@ -588,17 +683,19 @@ class EnglishTutorPlugin(Star):
                     "ai",
                     dialog=str(item.get("dialog") or "").strip(),
                 )
+                self._schedule_audio("sentence", sentence_id, sentence)
                 new_sentences += 1
         for item in data.get("vocab") or []:
             word = str(item.get("word") or "").strip()
             if word:
-                self.store.add_vocab(
+                vocab_id = self.store.add_vocab(
                     umo,
                     today,
                     word,
                     str(item.get("meaning") or ""),
                     str(item.get("example") or ""),
                 )
+                self._schedule_audio("vocab", vocab_id, word)
                 new_vocab += 1
         logger.info(
             f"[english_tutor] extraction done: errors +{new_errors} (merged {merged}),"
@@ -639,6 +736,7 @@ class EnglishTutorPlugin(Star):
         if not force:
             existing = self.store.get_daily(self._today())
             if existing:
+                await self._generate_daily_audio(existing)
                 return existing
         prompt = self._build_daily_prompt(requirement)
         bound = await self.get_kv_data("bound_umo", "")
@@ -668,8 +766,14 @@ class EnglishTutorPlugin(Star):
         if not items:
             logger.warning("[english_tutor] daily generation returned no valid items")
             return None
+        previous = self.store.get_daily(self._today())
+        if previous and self.audio_manager:
+            self.audio_manager.delete_owner("practice", int(previous["id"]))
         self.store.save_daily(self._today(), str(bound or ""), ptype, items)
-        return self.store.get_daily(self._today())
+        practice = self.store.get_daily(self._today())
+        if practice:
+            await self._generate_daily_audio(practice)
+        return practice
 
     def _due_line(self, umo: str | None) -> str:
         assert self.store
@@ -848,6 +952,7 @@ class EnglishTutorPlugin(Star):
                 bound, MessageChain(chain=[Comp.Plain(text)])
             )
             sent = True
+        await self._send_daily_audio(bound, practice)
         self.store.set_daily_status(practice["id"], "pushed")
         return sent
 
@@ -1101,7 +1206,7 @@ class EnglishTutorPlugin(Star):
         if action == "save_sentence":
             if not sentence:
                 return "缺少 sentence 参数，未保存。"
-            self.store.add_sentence(
+            sentence_id = self.store.add_sentence(
                 umo,
                 today,
                 sentence,
@@ -1110,6 +1215,7 @@ class EnglishTutorPlugin(Star):
                 context=self._capture_context(event),
                 dialog=(dialog or "").strip(),
             )
+            self._schedule_audio("sentence", sentence_id, sentence)
             return f"已收藏句子：{sentence}"
 
         if action == "log_error":
@@ -1125,13 +1231,14 @@ class EnglishTutorPlugin(Star):
         if action == "add_vocab":
             if not sentence:
                 return "缺少 sentence 参数，未记录。"
-            self.store.add_vocab(
+            vocab_id = self.store.add_vocab(
                 umo,
                 today,
                 sentence,
                 note.strip(),
                 context=self._capture_context(event),
             )
+            self._schedule_audio("vocab", vocab_id, sentence)
             return f"已收录单词/短语：{sentence}"
 
         if action == "mark_review":
@@ -1420,6 +1527,7 @@ class EnglishTutorPlugin(Star):
             yield event.chain_result([Comp.Image.fromFileSystem(image_path)])
         else:
             yield event.plain_result(self._format_practice_text(practice))
+        await self._send_daily_audio(event.unified_msg_origin, practice)
 
     @filter.command("英语重写", alias={"en_rewrite"})
     async def cmd_en_rewrite(self, event: AstrMessageEvent, requirement: str = ""):
@@ -1443,3 +1551,4 @@ class EnglishTutorPlugin(Star):
             yield event.chain_result([Comp.Image.fromFileSystem(image_path)])
         else:
             yield event.plain_result(self._format_practice_text(practice))
+        await self._send_daily_audio(event.unified_msg_origin, practice)

@@ -87,6 +87,13 @@
   tr:last-child td { border-bottom: none; }
   .en { font-family: Georgia, "Times New Roman", serif; font-size: 14.5px; }
   .muted { color: var(--muted); font-size: 12.5px; }
+  .audio-stack { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; min-width: 170px; }
+  .audio-player { width: 168px; height: 30px; vertical-align: middle; }
+  button.audio-btn { width: 30px; height: 30px; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: var(--panel); color: var(--accent); cursor: pointer; font-size: 14px; }
+  button.audio-btn:hover { border-color: var(--accent); }
+  .audio-candidate { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; width: 100%; padding-top: 4px; border-top: 1px dashed var(--line); }
+  .audio-candidate .audio-player { width: 145px; }
+  .audio-apply { color: var(--ok); }
   .pill { display: inline-block; font-size: 11.5px; border-radius: 999px; padding: 2px 9px; border: 1px solid var(--line); color: var(--muted); }
   .pill.open { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
   .pill.resolved { color: var(--ok); border-color: var(--ok); }
@@ -190,6 +197,9 @@ const state = {
   date: "",
   errorStatus: "all",
   editing: null,
+  audioAvailable: false,
+  audioSettings: { emotion_mode: "default", emotion: "", role: "" },
+  audioOptions: { roles: [], emotions: [] },
 };
 const PAGE_SIZE = 20;
 
@@ -212,6 +222,46 @@ async function api(fn) {
 }
 
 function applyTheme(isDark) { document.body.classList.toggle("dark", !!isDark); }
+
+async function loadAudioOptions() {
+  try {
+    const options = await api(() => bridge.apiGet("audio/options"));
+    state.audioAvailable = !!options.available;
+    state.audioOptions = {
+      roles: Array.isArray(options.roles) ? options.roles : [],
+      emotions: Array.isArray(options.emotions) ? options.emotions : [],
+    };
+    state.audioSettings = { ...state.audioSettings, ...(options.settings || {}) };
+  } catch (_) {
+    state.audioAvailable = false;
+  }
+}
+
+function syncAudioSettings() {
+  const role = document.getElementById("audioRole");
+  const mode = document.getElementById("audioEmotionMode");
+  const emotion = document.getElementById("audioEmotion");
+  if (role) state.audioSettings.role = role.value;
+  if (mode) state.audioSettings.emotion_mode = mode.value;
+  if (emotion) state.audioSettings.emotion = emotion.value;
+  if (emotion) emotion.style.display = state.audioSettings.emotion_mode === "specified" ? "" : "none";
+}
+
+function audioSettingsControls() {
+  if (!state.audioAvailable) return "";
+  const roles = [...new Set([state.audioSettings.role, ...state.audioOptions.roles].filter(Boolean))];
+  const emotions = [...new Set([state.audioSettings.emotion, ...state.audioOptions.emotions].filter(Boolean))];
+  return `<select id="audioRole" title="语音角色" aria-label="语音角色">
+      <option value="">当前角色</option>${roles.map((r) => `<option value="${esc(r)}">${esc(r)}</option>`).join("")}
+    </select>
+    <select id="audioEmotionMode" title="情感模式" aria-label="情感模式">
+      <option value="default">沿用插件逻辑</option><option value="auto">自动判断</option><option value="specified">指定情感</option>
+    </select>
+    <select id="audioEmotion" title="指定情感" aria-label="指定情感">
+      <option value="">选择情感</option>${emotions.map((e) => `<option value="${esc(e)}">${esc(e)}</option>`).join("")}
+    </select>
+    <button class="btn" id="batchAudioBtn" title="补齐当前类型的历史音频">补齐音频</button>`;
+}
 
 // ==================== stats ====================
 
@@ -249,7 +299,7 @@ function renderToolbar() {
   const addBtn = addable ? `<button class="btn primary" id="addBtn">➕ 新增</button>` : "";
   bar.innerHTML = `${kw}${statusSel}${dateInput}
     <button class="btn" id="refreshBtn">查询</button>
-    <button class="btn" id="resetBtn">重置</button>${addBtn}`;
+    <button class="btn" id="resetBtn">重置</button>${addBtn}${audioSettingsControls()}`;
   const statusEl = document.getElementById("statusSel");
   if (statusEl) statusEl.value = state.errorStatus;
   document.getElementById("refreshBtn").onclick = () => {
@@ -268,11 +318,67 @@ function renderToolbar() {
   };
   const addEl = document.getElementById("addBtn");
   if (addEl) addEl.onclick = () => openCreator(state.tab);
+  const roleEl = document.getElementById("audioRole");
+  const modeEl = document.getElementById("audioEmotionMode");
+  const emotionEl = document.getElementById("audioEmotion");
+  if (roleEl) roleEl.value = state.audioSettings.role || "";
+  if (modeEl) modeEl.value = state.audioSettings.emotion_mode || "default";
+  if (emotionEl) emotionEl.value = state.audioSettings.emotion || "";
+  if (roleEl) roleEl.onchange = syncAudioSettings;
+  if (modeEl) modeEl.onchange = syncAudioSettings;
+  if (emotionEl) emotionEl.onchange = syncAudioSettings;
+  syncAudioSettings();
+  const batchEl = document.getElementById("batchAudioBtn");
+  if (batchEl) batchEl.onclick = batchAudio;
   const kwEl = document.getElementById("kwInput");
   kwEl.addEventListener("keydown", (e) => { if (e.key === "Enter") document.getElementById("refreshBtn").click(); });
 }
 
 // ==================== tables ====================
+
+function audioCell(kind, id, itemIndex, item) {
+  const current = item && item.audio;
+  const candidate = item && item.audio_candidate;
+  const indexAttr = `data-index="${itemIndex}"`;
+  let html = '<div class="audio-stack">';
+  if (current) {
+    html += `<audio class="audio-player" controls preload="none" src="${esc(current.url)}"></audio>`;
+  } else if (state.audioAvailable) {
+    html += `<button class="audio-btn" data-act="audio-generate" data-kind="${kind}" data-id="${id}" ${indexAttr} title="生成音频" aria-label="生成音频">▶</button><span class="muted">未生成</span>`;
+  } else {
+    html += '<span class="muted">语音插件不可用</span>';
+  }
+  if (state.audioAvailable) {
+    html += `<button class="audio-btn" data-act="audio-regenerate" data-kind="${kind}" data-id="${id}" ${indexAttr} title="重新合成候选音频" aria-label="重新合成候选音频">↻</button>`;
+  }
+  if (candidate) {
+    html += `<div class="audio-candidate"><span class="muted">候选</span><audio class="audio-player" controls preload="none" src="${esc(candidate.url)}"></audio><button class="link audio-apply" data-act="audio-apply" data-kind="${kind}" data-id="${id}" ${indexAttr}>应用</button></div>`;
+  }
+  return html + '</div>';
+}
+
+async function audioAction(act, kind, id, itemIndex) {
+  syncAudioSettings();
+  const payload = { kind, id };
+  if (itemIndex >= 0) payload.item_index = itemIndex;
+  if (act === "audio-regenerate") Object.assign(payload, state.audioSettings);
+  await api(() => bridge.apiPost(`audio/${act.replace("audio-", "")}`, payload));
+  toast(act === "audio-apply" ? "候选音频已应用" : "音频已更新");
+  await loadTab();
+}
+
+async function batchAudio() {
+  const button = document.getElementById("batchAudioBtn");
+  if (button) button.disabled = true;
+  try {
+    const kind = state.tab === "sentences" || state.tab === "vocab" || state.tab === "practice" ? state.tab : "all";
+    const result = await api(() => bridge.apiPost("audio/batch", { kind, limit: 200 }));
+    toast(`音频补齐完成：${result.generated || 0} 条，失败 ${result.failed || 0} 条`);
+    await loadTab();
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
 
 function actionsCell(kind, id) {
   return `<td style="white-space:nowrap">
@@ -285,8 +391,12 @@ function bindActions() {
   document.querySelectorAll("#content button[data-act]").forEach((btn) => {
     btn.onclick = () => {
       const { act, kind, id } = btn.dataset;
+      const itemIndex = Number(btn.dataset.index ?? -1);
       if (act === "delete") removeRow(kind, Number(id));
       else if (act === "edit") openEditor(kind, Number(id));
+      else if (act === "audio-generate" || act === "audio-regenerate" || act === "audio-apply") {
+        audioAction(act, kind, Number(id), itemIndex);
+      }
     };
   });
 }
@@ -305,13 +415,14 @@ async function removeRow(kind, id) {
 function renderSentences(data) {
   if (!data.items.length) return `<div class="empty">还没有收藏的句子。对话里对教练说「这个句子不错，记一下」即可收藏。</div>`;
   return `<table><thead><tr>
-    <th style="width:44%">句子</th><th>备注</th><th>来源</th><th>日期</th><th></th>
+    <th style="width:38%">句子</th><th>备注</th><th>来源</th><th>日期</th><th>发音</th><th></th>
   </tr></thead><tbody>` + data.items.map((r) => `
     <tr>
       <td class="en">${esc(r.sentence)}${r.context ? `<div class="muted" style="margin-top:3px">情境：${esc(String(r.context).slice(0, 120))}${String(r.context).length > 120 ? "…" : ""}</div>` : ""}${r.dialog ? `<div class="muted" style="margin-top:3px; white-space:pre-line">💬 ${esc(String(r.dialog).slice(0, 160))}${String(r.dialog).length > 160 ? "…" : ""}</div>` : ""}</td>
       <td>${esc(r.note) || '<span class="muted">—</span>'}</td>
       <td><span class="pill">${r.source === "ai" ? "教练" : "我"}</span></td>
       <td class="muted">${esc(r.date)}</td>
+      <td>${audioCell("sentences", r.id, -1, r)}</td>
       ${actionsCell("sentences", r.id)}
     </tr>`).join("") + "</tbody></table>";
 }
@@ -338,7 +449,7 @@ function renderErrors(data) {
 function renderVocab(data) {
   if (!data.items.length) return `<div class="empty">单词本还是空的。英语对话中出现的生词会自动收录。</div>`;
   return `<table><thead><tr>
-    <th style="width:20%">单词 / 短语</th><th style="width:26%">释义</th><th>例句</th><th>下次复习</th><th>记录日</th><th></th>
+    <th style="width:18%">单词 / 短语</th><th style="width:24%">释义</th><th>例句</th><th>下次复习</th><th>记录日</th><th>发音</th><th></th>
   </tr></thead><tbody>` + data.items.map((r) => `
     <tr>
       <td class="en">${esc(r.word)}${r.context ? `<div class="muted" style="margin-top:3px">情境：${esc(String(r.context).slice(0, 100))}${String(r.context).length > 100 ? "…" : ""}</div>` : ""}${r.dialog ? `<div class="muted" style="margin-top:3px; white-space:pre-line">💬 ${esc(String(r.dialog).slice(0, 140))}${String(r.dialog).length > 140 ? "…" : ""}</div>` : ""}</td>
@@ -346,6 +457,7 @@ function renderVocab(data) {
       <td class="en">${esc(r.example) || '<span class="muted">—</span>'}</td>
       <td class="muted">${esc(r.next_review) || "—"}</td>
       <td class="muted">${esc(r.date)}</td>
+      <td>${audioCell("vocab", r.id, -1, r)}</td>
       ${actionsCell("vocab", r.id)}
     </tr>`).join("") + "</tbody></table>";
 }
@@ -359,7 +471,8 @@ function renderPractice(data) {
     const items = (p.items || []).map((it) => {
       const speaker = it.speaker ? `<span class="muted">${esc(it.speaker)}：</span>` : "";
       const zh = it.zh ? `<div class="zh">${esc(it.zh)}${it.note ? `（${esc(it.note)}）` : ""}</div>` : "";
-      return `<div class="practice-item"><span class="en">${speaker}${esc(it.en)}</span>${zh}</div>`;
+      const audio = audioCell("practice", p.id, (p.items || []).indexOf(it), it);
+      return `<div class="practice-item"><span class="en">${speaker}${esc(it.en)}</span>${zh}<div style="margin-top:5px">${audio}</div></div>`;
     }).join("");
     return `<div class="practice-card">
       <div class="practice-head">
@@ -595,6 +708,7 @@ document.getElementById("overlay").addEventListener("click", (e) => {
 const context = await bridge.ready();
 applyTheme(context.isDark);
 bridge.onContext((c) => applyTheme(c.isDark));
+await loadAudioOptions();
 await loadStats();
 await loadTab();
 </script>
