@@ -392,7 +392,6 @@ def register_routes(plugin: EnglishTutorPlugin) -> None:
             return error_response("音频不存在", status_code=404)
         return file_response(
             path,
-            filename=path.name,
             content_type="audio/wav",
             headers={"Cache-Control": "no-store"},
         )

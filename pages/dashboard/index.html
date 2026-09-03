@@ -342,7 +342,7 @@ function audioCell(kind, id, itemIndex, item) {
   const indexAttr = `data-index="${itemIndex}"`;
   let html = '<div class="audio-stack">';
   if (current) {
-    html += `<audio class="audio-player" controls preload="none" src="${esc(current.url)}"></audio>`;
+    html += `<audio class="audio-player" controls preload="metadata" src="${esc(current.url)}"></audio>`;
   } else if (state.audioAvailable) {
     html += `<button class="audio-btn" data-act="audio-generate" data-kind="${kind}" data-id="${id}" ${indexAttr} title="生成音频" aria-label="生成音频">▶</button><span class="muted">未生成</span>`;
   } else {
@@ -352,7 +352,7 @@ function audioCell(kind, id, itemIndex, item) {
     html += `<button class="audio-btn" data-act="audio-regenerate" data-kind="${kind}" data-id="${id}" ${indexAttr} title="重新合成候选音频" aria-label="重新合成候选音频">↻</button>`;
   }
   if (candidate) {
-    html += `<div class="audio-candidate"><span class="muted">候选</span><audio class="audio-player" controls preload="none" src="${esc(candidate.url)}"></audio><button class="link audio-apply" data-act="audio-apply" data-kind="${kind}" data-id="${id}" ${indexAttr}>应用</button></div>`;
+    html += `<div class="audio-candidate"><span class="muted">候选</span><audio class="audio-player" controls preload="metadata" src="${esc(candidate.url)}"></audio><button class="link audio-apply" data-act="audio-apply" data-kind="${kind}" data-id="${id}" ${indexAttr}>应用</button></div>`;
   }
   return html + '</div>';
 }

@@ -1,6 +1,6 @@
 name: astrbot_plugin_english_tutor
 display_name: "英语私教"
 description: "AI 英语私教：英文对话陪练与纠错、错误日记、重点句子收藏、单词本与轻量复习调度、英文对话存档、每日定时生成练习（文字/精美卡片图）、语音合成联动与 WebUI 数据管理。"
-version: 0.6.1
+version: 0.6.2
 author: "灵犀"
 repo: "https://github.com/gongzhudeng/astrbot_plugin_english_tutor"
