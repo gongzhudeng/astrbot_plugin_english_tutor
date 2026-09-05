@@ -60,7 +60,9 @@ class _TutorMediaGateway:
             ticket = secrets.token_urlsafe(32)
             self._tickets[ticket] = _MediaTicket(
                 resource,
-                mime_type or mimetypes.guess_type(resource.name)[0] or "application/octet-stream",
+                mime_type
+                or mimetypes.guess_type(resource.name)[0]
+                or "application/octet-stream",
                 time.monotonic() + self._ttl_seconds,
             )
             port = self._port
@@ -300,7 +302,9 @@ class TutorAudioManager:
         text = str(item.get("sentence" if owner_type == "sentence" else "word") or "")
         if owner_type == "practice":
             text = str(item.get("en") or "")
-        current = self.store.get_audio_asset(owner_type, owner_id, item_index, "current")
+        current = self.store.get_audio_asset(
+            owner_type, owner_id, item_index, "current"
+        )
         candidate = self.store.get_audio_asset(
             owner_type, owner_id, item_index, "candidate"
         )
@@ -580,7 +584,10 @@ class TutorAudioManager:
         result = {"total": len(targets), "generated": 0, "failed": 0, "skipped": 0}
         for target in targets:
             before = self.store.get_audio_asset(
-                target["owner_type"], target["owner_id"], target["item_index"], "current"
+                target["owner_type"],
+                target["owner_id"],
+                target["item_index"],
+                "current",
             )
             payload = await self.ensure(target, force=True)
             if payload:
@@ -593,6 +600,113 @@ class TutorAudioManager:
             else:
                 result["failed"] += 1
         return result
+
+    async def combined(
+        self, practice_id: int, *, generate_missing: bool = True
+    ) -> tuple[dict[str, Any] | None, str]:
+        """Return a merged WAV asset covering every item of one practice day.
+
+        The combined file is cached as an audio asset with ``item_index = -1``
+        whose ``text`` field stores the fingerprint (joined asset ids) of the
+        per-item source audios. The daily push and the WebUI play-all player
+        share this cache: either side builds it once and the other reuses it
+        until one of the item audios changes.
+
+        Args:
+            practice_id: The daily_practice row id.
+            generate_missing: When False this is a cheap probe that only
+                returns an already cached combined asset and never synthesizes
+                or merges.
+
+        Returns:
+            (asset payload, "") on success, (None, error) on failure. The probe
+            mode returns (None, "") when no reusable combined asset exists.
+        """
+        practice = self.store.get_daily_by_id(int(practice_id))
+        if not practice:
+            return None, "练习记录不存在"
+        fingerprint_parts: list[str] = []
+        source_paths: list[Path] = []
+        item_sources: list[tuple[int, str, float]] = []
+        for index, item in enumerate(practice.get("items") or []):
+            text = str((item or {}).get("en") or "").strip()
+            if not text:
+                continue
+            row = self.store.get_audio_asset(
+                "practice", int(practice_id), index, "current"
+            )
+            payload = self._payload(row, expected_text=text)
+            if not payload and not generate_missing:
+                return None, ""
+            if not payload:
+                payload, error = await self.generate(
+                    {
+                        "owner_type": "practice",
+                        "owner_id": int(practice_id),
+                        "item_index": index,
+                        "text": text,
+                    }
+                )
+                if not payload:
+                    return None, error or f"第 {index + 1} 条音频不可用，请先补齐音频"
+                row = self.store.get_audio_asset(
+                    "practice", int(practice_id), index, "current"
+                )
+            path = self.path_for_asset(row)
+            if row is None or not path:
+                return None, f"第 {index + 1} 条音频文件缺失"
+            try:
+                with wave.open(str(path), "rb") as handle:
+                    duration = handle.getnframes() / float(handle.getframerate())
+            except (wave.Error, OSError):
+                return None, f"第 {index + 1} 条音频文件读取失败"
+            fingerprint_parts.append(str(row["id"]))
+            source_paths.append(path)
+            item_sources.append((index, text, duration))
+        if not fingerprint_parts:
+            return None, "这一天没有可合并的音频"
+
+        # Per-item start offsets inside the merged file so the WebUI playlist
+        # can jump straight to any sentence.
+        items_info: list[dict[str, Any]] = []
+        start = 0.0
+        for index, text, duration in item_sources:
+            items_info.append({"index": index, "start": round(start, 3), "text": text})
+            start += duration
+
+        fingerprint = "|".join(fingerprint_parts)
+        cached = self.store.get_audio_asset("practice", int(practice_id), -1, "current")
+        if cached and str(cached.get("text") or "") == fingerprint:
+            payload = self._payload(cached)
+            if payload:
+                payload["items"] = items_info
+                return payload, ""
+        self._remove_rows(
+            self.store.delete_audio_assets("practice", int(practice_id), -1)
+        )
+        merged = self.merge_wav(
+            source_paths, self.audio_dir / f"english_tutor_{uuid.uuid4().hex}.wav"
+        )
+        if not merged:
+            return None, "合并音频失败"
+        settings = self.default_settings()
+        self.store.add_audio_asset(
+            "practice",
+            int(practice_id),
+            -1,
+            fingerprint,
+            merged.name,
+            "current",
+            settings["emotion_mode"],
+            settings["emotion"],
+            settings["role"],
+        )
+        row = self.store.get_audio_asset("practice", int(practice_id), -1, "current")
+        payload = self._payload(row)
+        if not payload:
+            return None, "合并音频失败"
+        payload["items"] = items_info
+        return payload, ""
 
     @staticmethod
     def merge_wav(paths: list[Path], output: Path) -> Path | None:

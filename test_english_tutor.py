@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import io
 import tempfile
 import unittest
+import wave
 from pathlib import Path
 
 from astrbot_plugin_english_tutor.audio import TutorAudioManager
@@ -124,8 +126,8 @@ class EnglishTutorToolTests(unittest.TestCase):
     def test_version_and_repository_metadata(self) -> None:
         metadata = Path(__file__).with_name("metadata.yaml").read_text(encoding="utf-8")
         source = Path(__file__).with_name("main.py").read_text(encoding="utf-8")
-        self.assertIn("version: 0.6.3", metadata)
-        self.assertIn('"0.6.3"', source)
+        self.assertIn("version: 0.7.4", metadata)
+        self.assertIn('"0.7.4"', source)
         self.assertIn(
             "https://github.com/gongzhudeng/astrbot_plugin_english_tutor",
             metadata,
@@ -137,9 +139,9 @@ class EnglishTutorToolTests(unittest.TestCase):
                 return text, kwargs
 
         class Metadata:
-            name = "鐏电妧 路 GPT-SoVITS 璇煶鍚堟垚"
+            name = "鐏电妧 路 GPT-SoVITS 璇煶鍚堟垚"
             root_dir_name = "astrbot_plugin_lingxi_gpt_sovits"
-            plugin_id = "鐏电妧/鐏电妧 路 gpt-sovits 璇煶鍚堟垚"
+            plugin_id = "鐏电妧/鐏电妧 路 gpt-sovits 璇煶鍚堟垚"
             activated = True
             star_cls = FakeTTS()
 
@@ -147,8 +149,10 @@ class EnglishTutorToolTests(unittest.TestCase):
         plugin.context = type(
             "Context",
             (),
-            {"get_registered_star": lambda self, name: None,
-             "get_all_stars": lambda self: [Metadata()]},
+            {
+                "get_registered_star": lambda self, name: None,
+                "get_all_stars": lambda self: [Metadata()],
+            },
         )()
         plugin._cfg = lambda *args: True
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -156,6 +160,94 @@ class EnglishTutorToolTests(unittest.TestCase):
             manager = TutorAudioManager(plugin, store, Path(temp_dir) / "audio")
             self.assertIsNotNone(manager._tts_plugin())
             store.close()
+
+    def test_combined_audio_is_cached_until_items_change(self) -> None:
+        class WavTTS:
+            async def synthesize_for_plugin(self, text: str, **kwargs):
+                buffer = io.BytesIO()
+                with wave.open(buffer, "wb") as handle:
+                    handle.setnchannels(1)
+                    handle.setsampwidth(2)
+                    handle.setframerate(8000)
+                    handle.writeframes(b"\x00\x01" * (1600 * (len(text) % 3 + 1)))
+                return type(
+                    "Result",
+                    (),
+                    {"ok": True, "data": buffer.getvalue(), "error": None},
+                )()
+
+        class Metadata:
+            name = "fake-tts"
+            root_dir_name = "astrbot_plugin_lingxi_gpt_sovits"
+            plugin_id = "fake/tts"
+            activated = True
+            star_cls = WavTTS()
+
+        self.plugin.context = type(
+            "Context",
+            (),
+            {
+                "get_registered_star": lambda self, name: None,
+                "get_all_stars": lambda self: [Metadata()],
+            },
+        )()
+        self.plugin._cfg = lambda *args: args[-1]
+        store = self.plugin.store
+        store.save_daily(
+            "2026-09-05",
+            FakeEvent.unified_msg_origin,
+            "dialogue",
+            [
+                {"en": "Hello there", "zh": "你好"},
+                {"en": "Good morning", "zh": "早上好"},
+            ],
+        )
+        practice = store.get_daily("2026-09-05")
+        audio_dir = Path(self.temp_dir.name) / "audio"
+        manager = TutorAudioManager(self.plugin, store, audio_dir)
+
+        payload, error = asyncio.run(manager.combined(int(practice["id"])))
+        self.assertEqual(error, "")
+        self.assertIsNotNone(payload)
+        first_id = int(payload["id"])
+        # Per-item offsets let the WebUI playlist jump to any sentence.
+        # 1600*(11%3+1)=4800 frames = 0.6s, then 1600*(12%3+1)=1600 = 0.2s.
+        self.assertEqual(
+            payload["items"],
+            [
+                {"index": 0, "start": 0.0, "text": "Hello there"},
+                {"index": 1, "start": 0.6, "text": "Good morning"},
+            ],
+        )
+        merged_row = store.get_audio_asset_by_id(first_id)
+        with wave.open(str(audio_dir / merged_row["file_name"]), "rb") as merged:
+            # 1600*2 + 1600*0 silent frames from the two fake items
+            self.assertEqual(
+                merged.getnframes(), 1600 * (11 % 3 + 1) + 1600 * (12 % 3 + 1)
+            )
+
+        # Repeated calls (daily push or WebUI) reuse the cached combined file.
+        again, error = asyncio.run(manager.combined(int(practice["id"])))
+        self.assertEqual(error, "")
+        self.assertEqual(int(again["id"]), first_id)
+        probe, error = asyncio.run(
+            manager.combined(int(practice["id"]), generate_missing=False)
+        )
+        self.assertEqual(error, "")
+        self.assertEqual(int(probe["id"]), first_id)
+
+        # Once one item's audio changes, the combined file is rebuilt.
+        stale = [
+            row
+            for row in store.list_audio_assets("practice", int(practice["id"]), 0)
+            if row["status"] == "current"
+        ]
+        store.delete_audio_asset(int(stale[0]["id"]))
+        rebuilt, error = asyncio.run(manager.combined(int(practice["id"])))
+        self.assertEqual(error, "")
+        self.assertIsNotNone(rebuilt)
+        self.assertNotEqual(int(rebuilt["id"]), first_id)
+        self.assertIsNone(store.get_audio_asset_by_id(first_id))
 
 
 class EnglishDetectionTests(unittest.TestCase):

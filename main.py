@@ -139,7 +139,7 @@ def extract_json(text: str) -> dict[str, Any] | None:
     PLUGIN_NAME,
     "灵犀",
     "AI 英语私教：对话纠错、错误日记、句子收藏、单词本、对话存档、每日练习生成。",
-    "0.6.3",
+    "0.7.4",
 )
 class EnglishTutorPlugin(Star):
     """英语私教插件主类。"""
@@ -260,7 +260,9 @@ class EnglishTutorPlugin(Star):
                 }
             )
 
-    async def _send_daily_audio(self, destination: str, practice: dict[str, Any]) -> bool:
+    async def _send_daily_audio(
+        self, destination: str, practice: dict[str, Any]
+    ) -> bool:
         manager = getattr(self, "audio_manager", None)
         if not manager or not destination:
             return False
@@ -291,18 +293,32 @@ class EnglishTutorPlugin(Star):
                 await self.context.send_message(
                     destination,
                     MessageChain(
-                        chain=[Comp.File(name=f"english_practice_{index}.wav", file=str(path))]
+                        chain=[
+                            Comp.File(
+                                name=f"english_practice_{index}.wav", file=str(path)
+                            )
+                        ]
                     ),
                 )
             return True
-        output = manager.audio_dir / f"daily_{practice.get('date', 'practice')}_combined.wav"
-        merged = manager.merge_wav(paths, output)
-        if not merged:
+        combined, error = await manager.combined(daily_id)
+        if not combined:
+            logger.warning(
+                "[english_tutor] combined daily audio unavailable: %s", error
+            )
+            return False
+        path = manager.file_path(int(combined["id"]))
+        if not path:
             return False
         await self.context.send_message(
             destination,
             MessageChain(
-                chain=[Comp.File(name=merged.name, file=str(merged))]
+                chain=[
+                    Comp.File(
+                        name=f"daily_{practice.get('date', 'practice')}_combined.wav",
+                        file=str(path),
+                    )
+                ]
             ),
         )
         return True
@@ -721,14 +737,25 @@ class EnglishTutorPlugin(Star):
         extra = str(requirement or "").strip()
         if extra:
             filled += f"\n本次附加要求（优先满足）：{extra}"
+
+        # Archive injection limits; 0 disables each source. Missing keys fall
+        # back to the historical default of 5 so old configs keep behaving.
         context_lines = []
-        for e in self.store.top_open_errors(limit=5):
-            corrected = f" → {e['corrected']}" if e.get("corrected") else ""
-            context_lines.append(f"- 常犯错误：{e['original']}{corrected}")
-        for s in self.store.recent_sentences(limit=5):
-            context_lines.append(f"- 收藏句子：{s['sentence']}")
-        context = "\n".join(context_lines) or "（暂无）"
+        errors_cfg = cfg.get("archive_errors_limit")
+        errors_limit = 5 if errors_cfg is None else max(0, int(errors_cfg))
+        if errors_limit:
+            for e in self.store.top_open_errors(limit=errors_limit):
+                corrected = f" → {e['corrected']}" if e.get("corrected") else ""
+                context_lines.append(f"- 常犯错误：{e['original']}{corrected}")
+        sentences_cfg = cfg.get("archive_sentences_limit")
+        sentences_limit = 5 if sentences_cfg is None else max(0, int(sentences_cfg))
+        if sentences_limit:
+            for s in self.store.recent_sentences(limit=sentences_limit):
+                context_lines.append(f"- 收藏句子：{s['sentence']}")
         spec = OUTPUT_FORMAT_SPEC.replace("{count}", str(count))
+        if not context_lines:
+            return f"{filled}\n{spec}"
+        context = "\n".join(context_lines)
         return f"{filled}\n\n【我的学习档案（供参考）】\n{context}\n{spec}"
 
     async def _generate_daily(

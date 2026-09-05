@@ -732,9 +732,7 @@ class TutorStore:
         owner_id: int,
         item_index: int | None = None,
     ) -> list[dict[str, Any]]:
-        sql = (
-            "SELECT * FROM audio_assets WHERE owner_type = ? AND owner_id = ?"
-        )
+        sql = "SELECT * FROM audio_assets WHERE owner_type = ? AND owner_id = ?"
         params: list[Any] = [owner_type, owner_id]
         if item_index is not None:
             sql += " AND item_index = ?"

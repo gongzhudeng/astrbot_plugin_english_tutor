@@ -37,7 +37,7 @@
     font-family: "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
     font-size: 14px;
   }
-  .wrap { max-width: 1080px; margin: 0 auto; padding: 20px 18px 48px; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 20px 18px 150px; }
 
   .head { display: flex; align-items: baseline; gap: 12px; margin: 6px 2px 16px; }
   .head h1 { font-size: 20px; font-weight: 700; margin: 0; }
@@ -73,25 +73,50 @@
   button.btn:hover { border-color: var(--accent); color: var(--accent); }
   button.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
   button.btn.primary:hover { filter: brightness(1.08); color: #fff; }
+  button.btn.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+  button.btn.danger:hover { filter: brightness(1.08); color: #fff; }
   button.link { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 12.5px; padding: 4px 6px; font-family: inherit; }
   button.link:hover { color: var(--accent); }
   button.link.danger:hover { color: var(--danger); }
 
   .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); overflow: hidden; }
-  table { width: 100%; border-collapse: collapse; }
-  th {
-    text-align: left; font-size: 12px; color: var(--muted); font-weight: 500;
-    padding: 10px 14px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--accent-soft) 55%, var(--panel));
+
+  /* ---- card list (sentences / errors / vocab) ---- */
+  .card { padding: 13px 16px; border-bottom: 1px solid var(--line); }
+  .card:last-child { border-bottom: none; }
+  .card:hover { background: color-mix(in srgb, var(--accent-soft) 25%, var(--panel)); }
+  .card-main {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 16.5px; font-weight: 500; line-height: 1.45;
   }
-  td { padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; font-size: 13.5px; }
-  tr:last-child td { border-bottom: none; }
-  .en { font-family: Georgia, "Times New Roman", serif; font-size: 14.5px; }
+  .card-zh { color: var(--muted); font-size: 13px; margin-top: 4px; line-height: 1.5; }
+  .card-corrected { font-family: Georgia, "Times New Roman", serif; color: var(--ok); font-size: 14.5px; margin-top: 3px; }
+  .card-example { font-family: Georgia, "Times New Roman", serif; font-size: 13.5px; opacity: 0.85; margin-top: 4px; line-height: 1.5; }
+  .card-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 9px; }
+  .card-meta .spacer { flex: 1; }
+  .card-details {
+    display: none; margin-top: 8px; padding: 8px 12px;
+    background: color-mix(in srgb, var(--accent-soft) 45%, var(--panel));
+    border-radius: 8px; font-size: 12.5px; color: var(--muted);
+  }
+  .card.open .card-details { display: block; }
+  body.expand-all .card .card-details { display: block; }
+  .detail-line { margin: 3px 0; line-height: 1.55; }
+  .detail-label {
+    display: inline-block; font-size: 11px; border: 1px solid var(--line);
+    border-radius: 4px; padding: 0 5px; margin-right: 6px; vertical-align: 1px;
+  }
+  .detail-line .en-text { white-space: pre-line; }
+  body.hide-zh .zh-part { display: none; }
+
   .muted { color: var(--muted); font-size: 12.5px; }
-  .audio-stack { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; min-width: 170px; }
+  .en { font-family: Georgia, "Times New Roman", serif; }
+  .audio-stack { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+  .audio-row { display: flex; align-items: center; gap: 5px; }
   .audio-player { width: 168px; height: 30px; vertical-align: middle; }
   button.audio-btn { width: 30px; height: 30px; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: var(--panel); color: var(--accent); cursor: pointer; font-size: 14px; }
   button.audio-btn:hover { border-color: var(--accent); }
-  .audio-candidate { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; width: 100%; padding-top: 4px; border-top: 1px dashed var(--line); }
+  .audio-candidate { display: flex; align-items: center; gap: 5px; padding-top: 4px; border-top: 1px dashed var(--line); }
   .audio-candidate .audio-player { width: 145px; }
   .audio-apply { color: var(--ok); }
   .pill { display: inline-block; font-size: 11.5px; border-radius: 999px; padding: 2px 9px; border: 1px solid var(--line); color: var(--muted); }
@@ -105,7 +130,28 @@
   .practice-head .spacer { flex: 1; }
   .practice-item { padding: 7px 0; border-top: 1px dashed var(--line); }
   .practice-item:first-of-type { border-top: none; }
-  .practice-item .zh { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+  .practice-item .en-text { font-family: Georgia, "Times New Roman", serif; font-size: 16.5px; line-height: 1.5; }
+  .practice-item .zh { color: var(--muted); font-size: 13px; margin-top: 2px; }
+
+  /* ---- day-wide playback overlay ---- */
+  .all-player-dialog { width: min(720px, 92vw); }
+  .all-player-dialog .all-status { color: var(--muted); font-size: 13px; padding: 18px 0; text-align: center; }
+  .all-player-dialog .all-box { padding: 4px 0 2px; }
+  .all-player-dialog audio { width: 100%; }
+  .all-playlist {
+    max-height: 42vh; overflow: auto; margin-top: 12px;
+    border: 1px solid var(--line); border-radius: 8px;
+  }
+  .all-playlist-item {
+    display: flex; gap: 10px; align-items: baseline;
+    padding: 8px 12px; border-bottom: 1px dashed var(--line);
+    cursor: pointer; font-size: 13.5px;
+  }
+  .all-playlist-item:last-child { border-bottom: none; }
+  .all-playlist-item:hover { background: color-mix(in srgb, var(--accent-soft) 40%, var(--panel)); }
+  .all-playlist-item .idx { color: var(--muted); font-size: 12px; min-width: 16px; }
+  .all-playlist-item .stamp { margin-left: auto; }
+  .all-playlist-item.active .en-text { color: var(--accent); font-weight: 600; }
 
   .msg-row { display: flex; gap: 10px; padding: 8px 14px; border-bottom: 1px solid var(--line); }
   .msg-row:last-child { border-bottom: none; }
@@ -145,6 +191,38 @@
   .dialog input, .dialog select, .dialog textarea { width: 100%; }
   .dialog textarea { min-height: 60px; resize: vertical; background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; font-family: inherit; font-size: 13px; outline: none; }
   .dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+  .dialog p { margin: 0; font-size: 13.5px; line-height: 1.6; }
+
+  /* ---- floating tool panel (fixed, bottom-right) ----
+     right:16px is only the pre-JS fallback; positionFab() moves the panel to
+     hug the content column's right edge so it never drifts to the far window
+     edge on wide screens. */
+  .fab {
+    position: fixed; right: 16px; bottom: 18px; width: 220px; z-index: 30;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.16); padding: 10px 12px;
+  }
+  .fab.min { width: auto; padding: 0; border-radius: 999px; }
+  .fab.min .fab-body { display: none; }
+  .fab.min .fab-toggle {
+    position: static; display: flex; align-items: center; justify-content: center;
+    width: 42px; height: 42px; font-size: 20px; border-radius: 999px;
+  }
+  .fab-toggle {
+    position: absolute; top: 6px; right: 8px; width: 26px; height: 26px;
+    display: flex; align-items: center; justify-content: center;
+    background: none; border: none; color: var(--muted); cursor: pointer;
+    font-size: 16px; padding: 0; font-family: inherit; border-radius: 999px;
+  }
+  .fab-toggle:hover { color: var(--accent); background: var(--accent-soft); }
+  .fab-section { margin-top: 9px; }
+  .fab-section:first-child { margin-top: 0; }
+  .fab-label { font-size: 11.5px; color: var(--muted); margin-bottom: 5px; }
+  .fab .btn { width: 100%; }
+  .fab .fab-row { display: flex; gap: 6px; }
+  .fab .fab-row .btn { flex: 1; padding-left: 6px; padding-right: 6px; }
+  .fab select { width: 100%; margin-bottom: 6px; }
+  .fab .audio-btn { width: 100%; border-radius: 8px; }
 </style>
 </head>
 <body>
@@ -173,6 +251,30 @@
   </div>
 </div>
 
+<!-- Floating tool panel: stays pinned bottom-right regardless of scrolling.
+     Starts collapsed by default; JS restores the remembered state. -->
+<div class="fab min" id="fab">
+  <button class="fab-toggle" id="fabToggle" title="收起面板">▾</button>
+  <div class="fab-body">
+    <div class="fab-section">
+      <div class="fab-label">显示</div>
+      <button class="btn" id="hideZhBtn">纯英文模式：关</button>
+      <div style="height:6px"></div>
+      <button class="btn" id="expandBtn">展开全部详情</button>
+    </div>
+    <div class="fab-section" id="fabAudio" style="display:none">
+      <div class="fab-label">音频</div>
+      <div id="fabAudioControls"></div>
+    </div>
+    <div class="fab-section">
+      <div class="fab-row">
+        <button class="btn" id="topBtn">回到顶部</button>
+        <button class="btn" id="reloadBtn">刷新列表</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="overlay">
   <div class="dialog">
     <h3 id="dialogTitle">编辑</h3>
@@ -181,6 +283,36 @@
       <button class="btn" id="aiFillBtn" style="display:none;margin-right:auto">🤖 AI 填充</button>
       <button class="btn" id="dialogCancel">取消</button>
       <button class="btn primary" id="dialogSave">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- In-page delete confirmation. The dashboard embeds this page in a sandboxed
+     iframe without allow-modals, so window.confirm() is ignored by the browser
+     and always returns false — a custom dialog is required. -->
+<div class="overlay" id="confirmOverlay">
+  <div class="dialog">
+    <h3>确认删除</h3>
+    <p id="confirmText"></p>
+    <div class="actions">
+      <button class="btn" id="confirmCancel">取消</button>
+      <button class="btn danger" id="confirmOk">删除</button>
+    </div>
+  </div>
+</div>
+
+<!-- Centered day-wide playback dialog: a wide native player plus the day's
+     sentence list; clicking a sentence jumps to its position. -->
+<div class="overlay" id="allPlayerOverlay">
+  <div class="dialog all-player-dialog">
+    <h3 id="allPlayerTitle">全天连播</h3>
+    <p class="all-status" id="allPlayerStatus">正在合并当天音频…</p>
+    <div class="all-box" id="allPlayerBox" style="display:none">
+      <audio id="allPlayerAudio" controls preload="metadata" aria-label="播放当天全部音频"></audio>
+    </div>
+    <div class="all-playlist" id="allPlaylist"></div>
+    <div class="actions">
+      <button class="btn" id="allPlayerClose">关闭</button>
     </div>
   </div>
 </div>
@@ -200,6 +332,9 @@ const state = {
   audioAvailable: false,
   audioSettings: { emotion_mode: "default", emotion: "", role: "" },
   audioOptions: { roles: [], emotions: [] },
+  hideZh: false,
+  expandAll: false,
+  fabOpen: false,
 };
 const PAGE_SIZE = 20;
 
@@ -248,7 +383,6 @@ function syncAudioSettings() {
 }
 
 function audioSettingsControls() {
-  if (!state.audioAvailable) return "";
   const roles = [...new Set([state.audioSettings.role, ...state.audioOptions.roles].filter(Boolean))];
   const emotions = [...new Set([state.audioSettings.emotion, ...state.audioOptions.emotions].filter(Boolean))];
   return `<select id="audioRole" title="语音角色" aria-label="语音角色">
@@ -261,6 +395,35 @@ function audioSettingsControls() {
       <option value="">选择情感</option>${emotions.map((e) => `<option value="${esc(e)}">${esc(e)}</option>`).join("")}
     </select>
     <button class="btn" id="batchAudioBtn" title="补齐当前类型的历史音频">补齐音频</button>`;
+}
+
+// Render TTS controls into the floating panel (they used to live in the
+// toolbar, which got crowded once filters were present).
+function renderFabAudio() {
+  const section = document.getElementById("fabAudio");
+  if (!state.audioAvailable) { section.style.display = "none"; return; }
+  section.style.display = "";
+  document.getElementById("fabAudioControls").innerHTML = audioSettingsControls();
+  const roleEl = document.getElementById("audioRole");
+  const modeEl = document.getElementById("audioEmotionMode");
+  const emotionEl = document.getElementById("audioEmotion");
+  if (roleEl) roleEl.value = state.audioSettings.role || "";
+  if (modeEl) modeEl.value = state.audioSettings.emotion_mode || "default";
+  if (emotionEl) emotionEl.value = state.audioSettings.emotion || "";
+  if (roleEl) roleEl.onchange = syncAudioSettings;
+  if (modeEl) modeEl.onchange = syncAudioSettings;
+  if (emotionEl) emotionEl.onchange = syncAudioSettings;
+  syncAudioSettings();
+  document.getElementById("batchAudioBtn").onclick = batchAudio;
+}
+
+function applyDisplayMode() {
+  document.body.classList.toggle("hide-zh", state.hideZh);
+  document.body.classList.toggle("expand-all", state.expandAll);
+  const zhBtn = document.getElementById("hideZhBtn");
+  zhBtn.textContent = state.hideZh ? "纯英文模式：开" : "纯英文模式：关";
+  zhBtn.classList.toggle("primary", state.hideZh);
+  document.getElementById("expandBtn").textContent = state.expandAll ? "收起全部详情" : "展开全部详情";
 }
 
 // ==================== stats ====================
@@ -299,7 +462,7 @@ function renderToolbar() {
   const addBtn = addable ? `<button class="btn primary" id="addBtn">➕ 新增</button>` : "";
   bar.innerHTML = `${kw}${statusSel}${dateInput}
     <button class="btn" id="refreshBtn">查询</button>
-    <button class="btn" id="resetBtn">重置</button>${addBtn}${audioSettingsControls()}`;
+    <button class="btn" id="resetBtn">重置</button>${addBtn}`;
   const statusEl = document.getElementById("statusSel");
   if (statusEl) statusEl.value = state.errorStatus;
   document.getElementById("refreshBtn").onclick = () => {
@@ -318,29 +481,17 @@ function renderToolbar() {
   };
   const addEl = document.getElementById("addBtn");
   if (addEl) addEl.onclick = () => openCreator(state.tab);
-  const roleEl = document.getElementById("audioRole");
-  const modeEl = document.getElementById("audioEmotionMode");
-  const emotionEl = document.getElementById("audioEmotion");
-  if (roleEl) roleEl.value = state.audioSettings.role || "";
-  if (modeEl) modeEl.value = state.audioSettings.emotion_mode || "default";
-  if (emotionEl) emotionEl.value = state.audioSettings.emotion || "";
-  if (roleEl) roleEl.onchange = syncAudioSettings;
-  if (modeEl) modeEl.onchange = syncAudioSettings;
-  if (emotionEl) emotionEl.onchange = syncAudioSettings;
-  syncAudioSettings();
-  const batchEl = document.getElementById("batchAudioBtn");
-  if (batchEl) batchEl.onclick = batchAudio;
   const kwEl = document.getElementById("kwInput");
   kwEl.addEventListener("keydown", (e) => { if (e.key === "Enter") document.getElementById("refreshBtn").click(); });
 }
 
-// ==================== tables ====================
+// ==================== audio cells ====================
 
 function audioCell(kind, id, itemIndex, item) {
   const current = item && item.audio;
   const candidate = item && item.audio_candidate;
   const indexAttr = `data-index="${itemIndex}"`;
-  let html = '<div class="audio-stack">';
+  let html = '<div class="audio-stack"><div class="audio-row">';
   if (current) {
     html += `<audio class="audio-player" controls preload="metadata" data-audio-id="${current.id}" aria-label="播放音频"></audio>`;
   } else if (state.audioAvailable) {
@@ -351,6 +502,7 @@ function audioCell(kind, id, itemIndex, item) {
   if (state.audioAvailable) {
     html += `<button class="audio-btn" data-act="audio-regenerate" data-kind="${kind}" data-id="${id}" ${indexAttr} title="重新合成候选音频" aria-label="重新合成候选音频">↻</button>`;
   }
+  html += '</div>';
   if (candidate) {
     html += `<div class="audio-candidate"><span class="muted">候选</span><audio class="audio-player" controls preload="metadata" data-audio-id="${candidate.id}" aria-label="播放候选音频"></audio><button class="link audio-apply" data-act="audio-apply" data-kind="${kind}" data-id="${id}" ${indexAttr}>应用</button></div>`;
   }
@@ -398,11 +550,83 @@ async function batchAudio() {
   }
 }
 
-function actionsCell(kind, id) {
-  return `<td style="white-space:nowrap">
-    <button class="link" data-act="edit" data-kind="${kind}" data-id="${id}">编辑</button>
-    <button class="link danger" data-act="delete" data-kind="${kind}" data-id="${id}">删除</button>
-  </td>`;
+// ==================== day-wide playback overlay ====================
+
+const allPlayerState = { practiceId: null, items: [] };
+
+// Open the centered day-wide player. The merged per-day audio is cached
+// backend-side and shared with the daily push, so this only synthesizes or
+// merges once until one of the item audios changes.
+async function openAllPlayer(practiceId, title) {
+  allPlayerState.practiceId = practiceId;
+  allPlayerState.items = [];
+  document.getElementById("allPlayerTitle").textContent = `全天连播 · ${title}`;
+  document.getElementById("allPlayerStatus").style.display = "";
+  document.getElementById("allPlayerBox").style.display = "none";
+  document.getElementById("allPlaylist").innerHTML = "";
+  document.getElementById("allPlayerOverlay").classList.add("show");
+  document.getElementById("allPlayerClose").focus();
+  try {
+    const result = await api(() => bridge.apiPost("audio/combined", { id: practiceId }));
+    const assetId = result && result.id;
+    if (!assetId) throw new Error("合并音频失败");
+    const ticket = await bridge.apiGet(`audio/ticket/${encodeURIComponent(assetId)}`);
+    const url = ticket?.url || ticket?.data?.url;
+    if (!url) throw new Error("音频地址获取失败");
+    allPlayerState.items = result.items || [];
+    const player = document.getElementById("allPlayerAudio");
+    player.src = url;
+    player.load();
+    renderAllPlaylist();
+    document.getElementById("allPlayerStatus").style.display = "none";
+    document.getElementById("allPlayerBox").style.display = "";
+    player.play();
+  } catch (_) {
+    // api() already toasts the failure reason.
+    closeAllPlayer();
+  }
+}
+
+function closeAllPlayer() {
+  const player = document.getElementById("allPlayerAudio");
+  player.pause();
+  player.removeAttribute("src");
+  player.load();
+  document.getElementById("allPlayerOverlay").classList.remove("show");
+  allPlayerState.practiceId = null;
+  allPlayerState.items = [];
+}
+
+function renderAllPlaylist() {
+  const box = document.getElementById("allPlaylist");
+  box.innerHTML = allPlayerState.items.map((it, i) => {
+    const total = Math.floor(it.start);
+    const stamp = `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+    return `<div class="all-playlist-item" data-start="${it.start}">
+      <span class="idx">${i + 1}</span>
+      <span class="en-text">${esc(it.text)}</span>
+      <span class="muted">${stamp}</span>
+    </div>`;
+  }).join("");
+  box.querySelectorAll(".all-playlist-item").forEach((el) => {
+    el.onclick = () => {
+      const player = document.getElementById("allPlayerAudio");
+      player.currentTime = Number(el.dataset.start);
+      player.play();
+      markActivePlaylistItem();
+    };
+  });
+}
+
+function markActivePlaylistItem() {
+  const player = document.getElementById("allPlayerAudio");
+  let active = -1;
+  for (let i = 0; i < allPlayerState.items.length; i++) {
+    if (player.currentTime >= allPlayerState.items[i].start) active = i;
+  }
+  document.querySelectorAll("#allPlaylist .all-playlist-item").forEach((el, i) => {
+    el.classList.toggle("active", i === active);
+  });
 }
 
 function bindActions() {
@@ -412,6 +636,11 @@ function bindActions() {
       const itemIndex = Number(btn.dataset.index ?? -1);
       if (act === "delete") removeRow(kind, Number(id));
       else if (act === "edit") openEditor(kind, Number(id));
+      else if (act === "details") btn.closest(".card")?.classList.toggle("open");
+      else if (act === "allplay") {
+        const card = btn.closest(".practice-card");
+        openAllPlayer(Number(id), card?.querySelector(".date")?.textContent || "");
+      }
       else if (act === "audio-generate" || act === "audio-regenerate" || act === "audio-apply") {
         audioAction(act, kind, Number(id), itemIndex);
       }
@@ -419,9 +648,24 @@ function bindActions() {
   });
 }
 
+async function confirmDelete(message) {
+  return new Promise((resolve) => {
+    const overlay = document.getElementById("confirmOverlay");
+    document.getElementById("confirmText").textContent = message;
+    overlay.classList.add("show");
+    const done = (val) => {
+      overlay.classList.remove("show");
+      resolve(val);
+    };
+    document.getElementById("confirmOk").onclick = () => done(true);
+    document.getElementById("confirmCancel").onclick = () => done(false);
+    overlay.onclick = (e) => { if (e.target === overlay) done(false); };
+  });
+}
+
 async function removeRow(kind, id) {
   const names = { sentences: "句子", errors: "错误", vocab: "单词", practice: "这期练习", archive: "存档消息" };
-  if (!confirm(`确定删除这条${names[kind] || "记录"}吗？`)) return;
+  if (!(await confirmDelete(`确定删除这条${names[kind] || "记录"}吗？删除后不可恢复。`))) return;
   await api(() => bridge.apiPost(`${kind}/delete`, { id }));
   toast("已删除");
   loadTab();
@@ -432,52 +676,76 @@ async function removeRow(kind, id) {
 
 function renderSentences(data) {
   if (!data.items.length) return `<div class="empty">还没有收藏的句子。对话里对教练说「这个句子不错，记一下」即可收藏。</div>`;
-  return `<table><thead><tr>
-    <th style="width:38%">句子</th><th>备注</th><th>来源</th><th>日期</th><th>发音</th><th></th>
-  </tr></thead><tbody>` + data.items.map((r) => `
-    <tr>
-      <td class="en">${esc(r.sentence)}${r.context ? `<div class="muted" style="margin-top:3px">情境：${esc(String(r.context).slice(0, 120))}${String(r.context).length > 120 ? "…" : ""}</div>` : ""}${r.dialog ? `<div class="muted" style="margin-top:3px; white-space:pre-line">💬 ${esc(String(r.dialog).slice(0, 160))}${String(r.dialog).length > 160 ? "…" : ""}</div>` : ""}</td>
-      <td>${esc(r.note) || '<span class="muted">—</span>'}</td>
-      <td><span class="pill">${r.source === "ai" ? "教练" : "我"}</span></td>
-      <td class="muted">${esc(r.date)}</td>
-      <td>${audioCell("sentences", r.id, -1, r)}</td>
-      ${actionsCell("sentences", r.id)}
-    </tr>`).join("") + "</tbody></table>";
+  return data.items.map((r) => {
+    const details = [];
+    if (r.context) details.push(`<div class="detail-line zh-part"><span class="detail-label">情境</span>${esc(String(r.context))}</div>`);
+    if (r.dialog) details.push(`<div class="detail-line"><span class="detail-label">对话</span><span class="en-text en">${esc(String(r.dialog))}</span></div>`);
+    const toggle = details.length
+      ? `<button class="link details-toggle" data-act="details">详情 ▸</button>` : "";
+    return `<div class="card">
+      <div class="card-main">${esc(r.sentence)}</div>
+      ${r.note ? `<div class="card-zh zh-part">${esc(r.note)}</div>` : ""}
+      ${details.length ? `<div class="card-details">${details.join("")}</div>` : ""}
+      <div class="card-meta">
+        <span class="pill">${r.source === "ai" ? "教练" : "我"}</span>
+        <span class="muted">${esc(r.date)}</span>
+        <span class="spacer"></span>
+        ${toggle}
+        ${audioCell("sentences", r.id, -1, r)}
+        <button class="link" data-act="edit" data-kind="sentences" data-id="${r.id}">编辑</button>
+        <button class="link danger" data-act="delete" data-kind="sentences" data-id="${r.id}">删除</button>
+      </div>
+    </div>`;
+  }).join("");
 }
 
 // ---- errors ----
 
 function renderErrors(data) {
   if (!data.items.length) return `<div class="empty">还没有错误记录。用英语聊天时教练会自动帮你记录。</div>`;
-  return `<table><thead><tr>
-    <th style="width:32%">原句 → 正确</th><th>解释</th><th>类别</th><th>状态</th><th>最近出现</th><th></th>
-  </tr></thead><tbody>` + data.items.map((r) => `
-    <tr>
-      <td><span class="en">${esc(r.original)}</span><br /><span class="muted">→ ${esc(r.corrected)}</span></td>
-      <td>${esc(r.explanation) || '<span class="muted">—</span>'}</td>
-      <td>${esc(r.category) || '<span class="muted">—</span>'}</td>
-      <td><span class="pill ${r.status === "open" ? "open" : "resolved"}">${r.status === "open" ? "未解决" : "已掌握"}</span></td>
-      <td class="muted">${esc(r.last_date)}（${r.hit_count} 次）</td>
-      ${actionsCell("errors", r.id)}
-    </tr>`).join("") + "</tbody></table>";
+  return data.items.map((r) => {
+    return `<div class="card">
+      <div class="card-main">${esc(r.original)}</div>
+      ${r.corrected ? `<div class="card-corrected">→ ${esc(r.corrected)}</div>` : ""}
+      ${r.explanation ? `<div class="card-zh zh-part">${esc(r.explanation)}</div>` : ""}
+      <div class="card-meta">
+        ${r.category ? `<span class="pill">${esc(r.category)}</span>` : ""}
+        <span class="pill ${r.status === "open" ? "open" : "resolved"}">${r.status === "open" ? "未解决" : "已掌握"}</span>
+        <span class="muted">${esc(r.last_date)}（${r.hit_count} 次）</span>
+        <span class="spacer"></span>
+        <button class="link" data-act="edit" data-kind="errors" data-id="${r.id}">编辑</button>
+        <button class="link danger" data-act="delete" data-kind="errors" data-id="${r.id}">删除</button>
+      </div>
+    </div>`;
+  }).join("");
 }
 
 // ---- vocab ----
 
 function renderVocab(data) {
   if (!data.items.length) return `<div class="empty">单词本还是空的。英语对话中出现的生词会自动收录。</div>`;
-  return `<table><thead><tr>
-    <th style="width:18%">单词 / 短语</th><th style="width:24%">释义</th><th>例句</th><th>下次复习</th><th>记录日</th><th>发音</th><th></th>
-  </tr></thead><tbody>` + data.items.map((r) => `
-    <tr>
-      <td class="en">${esc(r.word)}${r.context ? `<div class="muted" style="margin-top:3px">情境：${esc(String(r.context).slice(0, 100))}${String(r.context).length > 100 ? "…" : ""}</div>` : ""}${r.dialog ? `<div class="muted" style="margin-top:3px; white-space:pre-line">💬 ${esc(String(r.dialog).slice(0, 140))}${String(r.dialog).length > 140 ? "…" : ""}</div>` : ""}</td>
-      <td>${esc(r.meaning) || '<span class="muted">—</span>'}</td>
-      <td class="en">${esc(r.example) || '<span class="muted">—</span>'}</td>
-      <td class="muted">${esc(r.next_review) || "—"}</td>
-      <td class="muted">${esc(r.date)}</td>
-      <td>${audioCell("vocab", r.id, -1, r)}</td>
-      ${actionsCell("vocab", r.id)}
-    </tr>`).join("") + "</tbody></table>";
+  return data.items.map((r) => {
+    const details = [];
+    if (r.context) details.push(`<div class="detail-line zh-part"><span class="detail-label">情境</span>${esc(String(r.context))}</div>`);
+    if (r.dialog) details.push(`<div class="detail-line"><span class="detail-label">对话</span><span class="en-text en">${esc(String(r.dialog))}</span></div>`);
+    const toggle = details.length
+      ? `<button class="link details-toggle" data-act="details">详情 ▸</button>` : "";
+    return `<div class="card">
+      <div class="card-main">${esc(r.word)}</div>
+      ${r.meaning ? `<div class="card-zh zh-part">${esc(r.meaning)}</div>` : ""}
+      ${r.example ? `<div class="card-example">${esc(r.example)}</div>` : ""}
+      ${details.length ? `<div class="card-details">${details.join("")}</div>` : ""}
+      <div class="card-meta">
+        <span class="muted">复习 ${esc(r.next_review) || "—"}</span>
+        <span class="muted">${esc(r.date)}</span>
+        <span class="spacer"></span>
+        ${toggle}
+        ${audioCell("vocab", r.id, -1, r)}
+        <button class="link" data-act="edit" data-kind="vocab" data-id="${r.id}">编辑</button>
+        <button class="link danger" data-act="delete" data-kind="vocab" data-id="${r.id}">删除</button>
+      </div>
+    </div>`;
+  }).join("");
 }
 
 // ---- practice ----
@@ -488,9 +756,9 @@ function renderPractice(data) {
     const typeName = p.type === "dialogue" ? "情景对话" : "句子练习";
     const items = (p.items || []).map((it) => {
       const speaker = it.speaker ? `<span class="muted">${esc(it.speaker)}：</span>` : "";
-      const zh = it.zh ? `<div class="zh">${esc(it.zh)}${it.note ? `（${esc(it.note)}）` : ""}</div>` : "";
+      const zh = it.zh ? `<div class="zh zh-part">${esc(it.zh)}${it.note ? `（${esc(it.note)}）` : ""}</div>` : "";
       const audio = audioCell("practice", p.id, (p.items || []).indexOf(it), it);
-      return `<div class="practice-item"><span class="en">${speaker}${esc(it.en)}</span>${zh}<div style="margin-top:5px">${audio}</div></div>`;
+      return `<div class="practice-item"><span class="en-text">${speaker}${esc(it.en)}</span>${zh}<div style="margin-top:5px">${audio}</div></div>`;
     }).join("");
     return `<div class="practice-card">
       <div class="practice-head">
@@ -499,6 +767,7 @@ function renderPractice(data) {
         <span class="pill">${p.status === "pushed" ? "已推送" : "已生成"}</span>
         <span class="muted">${(p.items || []).length} 条</span>
         <span class="spacer"></span>
+        <button class="link" data-act="allplay" data-kind="practice" data-id="${p.id}">▶ 全天连播</button>
         <button class="link danger" data-act="delete" data-kind="practice" data-id="${p.id}">删除</button>
       </div>
       ${items}
@@ -725,11 +994,75 @@ document.getElementById("overlay").addEventListener("click", (e) => {
   if (e.target === document.getElementById("overlay")) closeEditor();
 });
 
+// Day-wide playback dialog: close via button, backdrop, or Esc.
+document.getElementById("allPlayerClose").onclick = closeAllPlayer;
+document.getElementById("allPlayerOverlay").addEventListener("click", (e) => {
+  if (e.target === document.getElementById("allPlayerOverlay")) closeAllPlayer();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && document.getElementById("allPlayerOverlay").classList.contains("show")) {
+    closeAllPlayer();
+  }
+});
+document.getElementById("allPlayerAudio").addEventListener("timeupdate", markActivePlaylistItem);
+
+// Floating panel: collapse toggle + display mode + quick actions.
+const fabEl = document.getElementById("fab");
+const fabToggle = document.getElementById("fabToggle");
+
+// Keep the panel hugging the content column's right edge instead of the far
+// window edge; on narrow windows there is no room beside the column, so clamp
+// back to the viewport edge.
+function positionFab() {
+  const wrapRect = document.querySelector(".wrap").getBoundingClientRect();
+  const left = Math.min(
+    wrapRect.right + 12,
+    window.innerWidth - fabEl.offsetWidth - 12
+  );
+  fabEl.style.left = `${Math.max(12, left)}px`;
+  fabEl.style.right = "auto";
+}
+window.addEventListener("resize", positionFab);
+
+fabToggle.onclick = () => {
+  state.fabOpen = !state.fabOpen;
+  try { localStorage.setItem("en_tutor_fab_open", state.fabOpen ? "1" : "0"); } catch { /* ignore */ }
+  fabEl.classList.toggle("min", !state.fabOpen);
+  fabToggle.textContent = state.fabOpen ? "▾" : "⚙";
+  fabToggle.title = state.fabOpen ? "收起面板" : "展开面板";
+  positionFab();
+};
+document.getElementById("hideZhBtn").onclick = () => {
+  state.hideZh = !state.hideZh;
+  // localStorage is blocked in the sandboxed iframe (no allow-same-origin);
+  // degrade to in-memory only when it throws.
+  try { localStorage.setItem("en_tutor_hide_zh", state.hideZh ? "1" : "0"); } catch { /* ignore */ }
+  applyDisplayMode();
+};
+document.getElementById("expandBtn").onclick = () => {
+  state.expandAll = !state.expandAll;
+  applyDisplayMode();
+};
+document.getElementById("topBtn").onclick = () => window.scrollTo({ top: 0, behavior: "smooth" });
+document.getElementById("reloadBtn").onclick = () => loadTab();
+
+// Collapsed by default; remember the user's choice when storage is available.
+try {
+  if (localStorage.getItem("en_tutor_fab_open") === "1") state.fabOpen = true;
+} catch { /* ignore */ }
+fabEl.classList.toggle("min", !state.fabOpen);
+fabToggle.textContent = state.fabOpen ? "▾" : "⚙";
+fabToggle.title = state.fabOpen ? "收起面板" : "展开面板";
+try { state.hideZh = localStorage.getItem("en_tutor_hide_zh") === "1"; } catch { /* ignore */ }
+positionFab();
+
 const context = await bridge.ready();
 applyTheme(context.isDark);
 bridge.onContext((c) => applyTheme(c.isDark));
 await loadAudioOptions();
+renderFabAudio();
 await loadStats();
+applyDisplayMode();
 await loadTab();
 </script>
 </body>

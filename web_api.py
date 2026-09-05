@@ -34,13 +34,19 @@ def _int_field(payload: dict[str, Any], key: str) -> int | None:
         return None
 
 
-def _audio_settings(plugin: EnglishTutorPlugin, payload: dict[str, Any]) -> dict[str, str]:
+def _audio_settings(
+    plugin: EnglishTutorPlugin, payload: dict[str, Any]
+) -> dict[str, str]:
     manager = getattr(plugin, "audio_manager", None)
-    defaults = manager.default_settings() if manager else {
-        "emotion_mode": "default",
-        "emotion": "",
-        "role": "",
-    }
+    defaults = (
+        manager.default_settings()
+        if manager
+        else {
+            "emotion_mode": "default",
+            "emotion": "",
+            "role": "",
+        }
+    )
     mode = str(payload.get("emotion_mode", defaults["emotion_mode"]) or "default")
     mode = mode.strip().lower()
     if mode not in {"default", "auto", "specified"}:
@@ -113,7 +119,9 @@ def register_routes(plugin: EnglishTutorPlugin) -> None:
         store.update_sentence(item_id, fields)
         updated = store.get_sentence(item_id)
         if updated:
-            plugin._schedule_audio("sentence", item_id, str(updated.get("sentence") or ""))
+            plugin._schedule_audio(
+                "sentence", item_id, str(updated.get("sentence") or "")
+            )
         return json_response({"updated": item_id})
 
     async def delete_sentence():
@@ -353,7 +361,9 @@ def register_routes(plugin: EnglishTutorPlugin) -> None:
             target, settings=_audio_settings(plugin, payload or {})
         )
         if not asset:
-            return error_response(generation_error or "候选音频生成失败", status_code=502)
+            return error_response(
+                generation_error or "候选音频生成失败", status_code=502
+            )
         return json_response({"audio": asset})
 
     async def audio_apply():
@@ -382,6 +392,20 @@ def register_routes(plugin: EnglishTutorPlugin) -> None:
         result = await manager.batch(kind, limit)
         return json_response(result)
 
+    async def audio_combined_build():
+        """Build or reuse the combined audio for one practice day."""
+        payload = await request.json(default={})
+        practice_id = _int_field(payload or {}, "id")
+        if not practice_id:
+            return error_response("缺少 id", status_code=400)
+        manager = plugin.audio_manager
+        if manager is None:
+            return error_response("音频功能未初始化", status_code=503)
+        asset, error = await manager.combined(practice_id)
+        if not asset:
+            return error_response(error or "合并音频失败", status_code=502)
+        return json_response({"id": asset["id"], "items": asset.get("items", [])})
+
     async def audio_file(asset_id: str):
         try:
             parsed_id = int(asset_id)
@@ -408,7 +432,9 @@ def register_routes(plugin: EnglishTutorPlugin) -> None:
         try:
             url = await manager.media_url(parsed_id)
         except (FileNotFoundError, RuntimeError, OSError) as exc:
-            logger.warning("failed to issue tutor audio ticket for %s: %s", parsed_id, exc)
+            logger.warning(
+                "failed to issue tutor audio ticket for %s: %s", parsed_id, exc
+            )
             return error_response("audio not found", status_code=404)
         if not url:
             return error_response("audio not found", status_code=404)
@@ -487,6 +513,12 @@ def register_routes(plugin: EnglishTutorPlugin) -> None:
         audio_batch,
         ["POST"],
         "Batch generate missing audio",
+    )
+    register(
+        f"{PAGE_PREFIX}/audio/combined",
+        audio_combined_build,
+        ["POST"],
+        "Build or reuse combined practice audio",
     )
     register(
         f"{PAGE_PREFIX}/audio/file/<asset_id>",
