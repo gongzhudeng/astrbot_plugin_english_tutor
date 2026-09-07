@@ -126,8 +126,8 @@ class EnglishTutorToolTests(unittest.TestCase):
     def test_version_and_repository_metadata(self) -> None:
         metadata = Path(__file__).with_name("metadata.yaml").read_text(encoding="utf-8")
         source = Path(__file__).with_name("main.py").read_text(encoding="utf-8")
-        self.assertIn("version: 0.7.4", metadata)
-        self.assertIn('"0.7.4"', source)
+        self.assertIn("version: 0.7.5", metadata)
+        self.assertIn('"0.7.5"', source)
         self.assertIn(
             "https://github.com/gongzhudeng/astrbot_plugin_english_tutor",
             metadata,
@@ -365,6 +365,100 @@ class ArchiveGateTests(unittest.TestCase):
         # Row-level delete used by the WebUI archive tab.
         store.delete_archive(rows[0]["id"])
         self.assertEqual(store.count_archive(umo=umo), 1)
+
+
+class DailyGenerationTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.plugin = object.__new__(EnglishTutorPlugin)
+        self.plugin.store = TutorStore(Path(self.temp_dir.name) / "tutor.db")
+        self.plugin.config = {
+            "daily_gen": {
+                "count": 8,
+                "topic": "日常生活",
+                "archive_errors_limit": 0,
+                "archive_sentences_limit": 0,
+                "history_days": 2,
+            }
+        }
+
+    def tearDown(self) -> None:
+        self.plugin.store.close()
+        self.temp_dir.cleanup()
+
+    def test_prompt_demands_exact_item_count_for_both_types(self) -> None:
+        prompt = self.plugin._build_daily_prompt()
+        self.assertIn("必须正好 8 条", prompt)
+        self.assertIn("台词总条数等于 8", prompt)
+        # The old fixed 4~8 rounds rule must be gone.
+        self.assertNotIn("4~8", prompt)
+
+    def test_recent_history_is_injected_and_can_be_disabled(self) -> None:
+        store = self.plugin.store
+        store.save_daily(
+            "2026-09-06",
+            "",
+            "dialogue",
+            [{"en": "Have you finished your shower?", "zh": "你洗澡了吗"}],
+        )
+        prompt = self.plugin._build_daily_prompt()
+        self.assertIn("生成时务必避开", prompt)
+        self.assertIn("Have you finished your shower?", prompt)
+
+        self.plugin.config["daily_gen"]["history_days"] = 0
+        prompt = self.plugin._build_daily_prompt()
+        self.assertNotIn("生成时务必避开", prompt)
+        self.assertNotIn("Have you finished your shower?", prompt)
+
+    def test_history_excludes_today_and_older_than_window(self) -> None:
+        store = self.plugin.store
+        store.save_daily(
+            "2026-09-07",
+            "",
+            "sentences",
+            [{"en": "Today row", "zh": "今天"}],
+        )
+        store.save_daily(
+            "2026-09-04",
+            "",
+            "sentences",
+            [{"en": "Too old row", "zh": "太老"}],
+        )
+        prompt = self.plugin._build_daily_prompt()
+        self.assertNotIn("Today row", prompt)
+        self.assertNotIn("Too old row", prompt)
+
+    def test_corrective_retry_replaces_short_generation(self) -> None:
+        calls: list[str] = []
+
+        async def fake_llm_text(prompt: str, system_prompt: str, umo=None):
+            calls.append(prompt)
+            if len(calls) == 1:
+                return (
+                    '{"type": "dialogue", "items": ['
+                    '{"speaker": "A", "en": "First line", "zh": "第一句"}]}'
+                )
+            return (
+                '{"type": "dialogue", "items": ['
+                + ",".join(
+                    f'{{"speaker": "A", "en": "Line {i}", "zh": "第{i}句"}}'
+                    for i in range(1, 9)
+                )
+                + "]}"
+            )
+
+        self.plugin._llm_text = fake_llm_text
+        self.plugin._today = lambda: "2026-09-07"
+
+        async def fake_kv(_key, _default=""):
+            return ""
+
+        self.plugin.get_kv_data = fake_kv
+        practice = asyncio.run(self.plugin._generate_daily(force=True))
+        self.assertEqual(len(calls), 2)
+        self.assertIn("上一次生成只有 1 条", calls[1])
+        self.assertIn("必须正好 8 条", calls[1])
+        self.assertEqual(len(practice["items"]), 8)
 
 
 if __name__ == "__main__":

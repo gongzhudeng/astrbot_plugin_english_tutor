@@ -48,15 +48,21 @@ DEFAULT_PROMPT_TEMPLATE = (
     "难度定位：{difficulty}\n主题：{topic}\n"
     "内容形式：句子练习或简短情景对话，根据主题选择更合适的一种。\n"
     "要求：表达地道、贴近日常实用场景，略高于我当前水平一点点；"
-    "结合我近期的错误和收藏的句子，优先覆盖我还没掌握的表达。"
+    "选择主题和表达时以今天的新内容为主，贴近生活且多样，不要重复教过的旧内容。\n"
+    "我的近期错误和收藏句子只是低优先级参考：不要围绕它们来定主题；"
+    "其中近期错误相对更重要一些，参考错误时只借鉴错误类型和语法点，"
+    "不要复用原句的单词或延续原句的话题。\n"
+    "如果提供了【近几天已生成内容】，必须避开那些句子、话题和场景，"
+    "不要生成相似的表达。"
 )
 
 # Appended after the user-editable template; braces stay literal (no .format).
 OUTPUT_FORMAT_SPEC = """
 【输出格式要求】只输出一个 JSON 对象，禁止输出任何解释或其他文字：
 {"type": "sentences 或 dialogue", "items": [...]}
-- 句子练习：type 为 "sentences"，items 每项为 {"en": "英文句子", "zh": "中文翻译", "note": "一句话用法提示"}，共 {count} 条。
-- 情景对话：type 为 "dialogue"，items 每项为 {"speaker": "说话人名字", "en": "英文台词", "zh": "中文翻译"}，共 4~8 轮。"""
+- items 无论句子还是对话台词，必须正好 {count} 条，不多不少；这是硬性数量要求。
+- 句子练习：type 为 "sentences"，items 每项为 {"en": "英文句子", "zh": "中文翻译", "note": "一句话用法提示"}。
+- 情景对话：type 为 "dialogue"，items 每项为 {"speaker": "说话人名字", "en": "英文台词", "zh": "中文翻译"}，台词总条数等于 {count}。"""
 
 DEFAULT_SENTENCE_FILL_PROMPT = (
     "请为下面这个英语句子生成学习笔记。\n句子：{text}\n"
@@ -139,7 +145,7 @@ def extract_json(text: str) -> dict[str, Any] | None:
     PLUGIN_NAME,
     "灵犀",
     "AI 英语私教：对话纠错、错误日记、句子收藏、单词本、对话存档、每日练习生成。",
-    "0.7.4",
+    "0.7.5",
 )
 class EnglishTutorPlugin(Star):
     """英语私教插件主类。"""
@@ -753,10 +759,41 @@ class EnglishTutorPlugin(Star):
             for s in self.store.recent_sentences(limit=sentences_limit):
                 context_lines.append(f"- 收藏句子：{s['sentence']}")
         spec = OUTPUT_FORMAT_SPEC.replace("{count}", str(count))
-        if not context_lines:
-            return f"{filled}\n{spec}"
-        context = "\n".join(context_lines)
-        return f"{filled}\n\n【我的学习档案（供参考）】\n{context}\n{spec}"
+
+        # Recent practice history for de-duplication; 0 disables. Each day is
+        # truncated to keep the prompt bounded.
+        history_cfg = cfg.get("history_days")
+        history_days = 0 if history_cfg is None else max(0, int(history_cfg))
+        history_blocks = []
+        if history_days:
+            for row in self.store.recent_daily(self._today(), history_days):
+                lines = [
+                    f"- {item.get('en', '')}"
+                    for item in (row.get("items") or [])
+                    if isinstance(item, dict) and item.get("en")
+                ]
+                if not lines:
+                    continue
+                history_blocks.append(
+                    f"{row['date']}（{'情景对话' if row.get('type') == 'dialogue' else '句子练习'}）：\n"
+                    + "\n".join(lines[:count])
+                )
+                if len("\n\n".join(history_blocks)) > 1500:
+                    break
+
+        parts = [filled]
+        if context_lines:
+            parts.append(
+                "【我的学习档案（低优先级参考，不要围绕它定主题）】\n"
+                + "\n".join(context_lines)
+            )
+        if history_blocks:
+            parts.append(
+                "【近几天已生成内容（生成时务必避开这些句子、话题和场景）】\n"
+                + "\n\n".join(history_blocks)
+            )
+        parts.append(spec)
+        return "\n\n".join(parts)
 
     async def _generate_daily(
         self, force: bool = False, requirement: str = ""
@@ -795,6 +832,51 @@ class EnglishTutorPlugin(Star):
         if not items:
             logger.warning("[english_tutor] daily generation returned no valid items")
             return None
+
+        # One corrective retry when the model ignored the hard item count.
+        expected = max(1, int((self.config.get("daily_gen") or {}).get("count") or 5))
+        if len(items) != expected:
+            logger.warning(
+                "[english_tutor] daily generation returned %s items, expected %s;"
+                " retrying once",
+                len(items),
+                expected,
+            )
+            retry_prompt = (
+                f"{prompt}\n\n【重要】上一次生成只有 {len(items)} 条，"
+                f"数量不符合要求。请重新生成，items 必须正好 {expected} 条。"
+            )
+            retry_text = await self._llm_text(
+                retry_prompt, "", str(bound) if bound else None
+            )
+            retry_data = extract_json(retry_text or "")
+            retry_items = []
+            if retry_data:
+                for raw in (retry_data.get("items") or [])[:40]:
+                    if not isinstance(raw, dict):
+                        continue
+                    en = str(raw.get("en") or "").strip()
+                    if not en:
+                        continue
+                    retry_items.append(
+                        {
+                            "en": en,
+                            "zh": str(raw.get("zh") or "").strip(),
+                            "note": str(raw.get("note") or "").strip(),
+                            "speaker": str(raw.get("speaker") or "").strip(),
+                        }
+                    )
+            if len(retry_items) == expected:
+                items = retry_items
+                if retry_data.get("type") in ("sentences", "dialogue"):
+                    ptype = retry_data["type"]
+            else:
+                logger.warning(
+                    "[english_tutor] corrective retry returned %s items,"
+                    " keeping the first attempt",
+                    len(retry_items),
+                )
+
         previous = self.store.get_daily(self._today())
         if previous and self.audio_manager:
             self.audio_manager.delete_owner("practice", int(previous["id"]))

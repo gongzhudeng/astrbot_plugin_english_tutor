@@ -659,6 +659,33 @@ class TutorStore:
             data["items"] = []
         return data
 
+    def recent_daily(self, before_date: str, days: int) -> list[dict[str, Any]]:
+        """Return the latest ``days`` practices strictly before ``before_date``.
+
+        Args:
+            before_date: Exclusive lower bound, formatted ``YYYY-MM-DD``.
+            days: How many calendar days of history to scan.
+
+        Returns:
+            Practices ordered from newest to oldest date.
+        """
+        since = (
+            datetime.strptime(before_date, "%Y-%m-%d") - timedelta(days=days)
+        ).strftime("%Y-%m-%d")
+        rows = self._run(
+            "SELECT * FROM daily_practice WHERE date >= ? AND date < ?"
+            " ORDER BY date DESC",
+            (since, before_date),
+            fetch_all=True,
+        )
+        result = self._rows_to_dicts(rows)
+        for item in result:
+            try:
+                item["items"] = json.loads(item.pop("items_json"))
+            except (TypeError, ValueError):
+                item["items"] = []
+        return result
+
     def get_daily_by_id(self, daily_id: int) -> dict[str, Any] | None:
         row = self._run(
             "SELECT * FROM daily_practice WHERE id = ? LIMIT 1",
