@@ -16,6 +16,38 @@ if TYPE_CHECKING:
 
 PAGE_PREFIX = "/astrbot_plugin_english_tutor"
 
+UI_PREFS_KEY = "ui_prefs"
+UI_PREFS_DEFAULTS: dict[str, Any] = {
+    "volume": 0.8,
+    "muted": False,
+    "theme_mode": "auto",
+    "fab_open": False,
+    "motion_on": True,
+}
+
+
+def _sanitize_prefs(payload: Any) -> dict[str, Any]:
+    """Clamp incoming dashboard preferences onto the known schema."""
+    prefs = dict(UI_PREFS_DEFAULTS)
+    if not isinstance(payload, dict):
+        return prefs
+    try:
+        volume = float(payload.get("volume"))
+    except (TypeError, ValueError):
+        volume = None
+    if volume is not None and volume == volume:  # rejects NaN
+        prefs["volume"] = round(min(1.0, max(0.0, volume)), 2)
+    if isinstance(payload.get("muted"), bool):
+        prefs["muted"] = payload["muted"]
+    mode = str(payload.get("theme_mode", "")).strip().lower()
+    if mode in {"auto", "light", "dark"}:
+        prefs["theme_mode"] = mode
+    if isinstance(payload.get("fab_open"), bool):
+        prefs["fab_open"] = payload["fab_open"]
+    if isinstance(payload.get("motion_on"), bool):
+        prefs["motion_on"] = payload["motion_on"]
+    return prefs
+
 
 def _paging(default_size: int = 20) -> tuple[int, int, int]:
     """Return (page, offset, page_size) from query parameters."""
@@ -378,6 +410,19 @@ def register_routes(plugin: EnglishTutorPlugin) -> None:
             return error_response(apply_error or "候选音频应用失败", status_code=409)
         return json_response({"audio": asset})
 
+    async def audio_discard():
+        """Delete the pending candidate audio for one target."""
+        payload = await request.json(default={})
+        target, error = _audio_target(plugin, payload or {})
+        if error:
+            return error_response(error, status_code=400)
+        manager = plugin.audio_manager
+        assert manager is not None and target is not None
+        _, discard_error = await manager.discard(target)
+        if discard_error:
+            return error_response(discard_error, status_code=409)
+        return json_response({"ok": True})
+
     async def audio_batch():
         payload = await request.json(default={})
         payload = payload or {}
@@ -509,6 +554,12 @@ def register_routes(plugin: EnglishTutorPlugin) -> None:
         "Apply candidate audio",
     )
     register(
+        f"{PAGE_PREFIX}/audio/discard",
+        audio_discard,
+        ["POST"],
+        "Discard candidate audio",
+    )
+    register(
         f"{PAGE_PREFIX}/audio/batch",
         audio_batch,
         ["POST"],
@@ -531,4 +582,38 @@ def register_routes(plugin: EnglishTutorPlugin) -> None:
         audio_ticket,
         ["GET"],
         "Issue tutor audio playback URL",
+    )
+
+    # ---------- dashboard UI preferences ----------
+
+    async def ui_prefs_get():
+        """Read persisted dashboard preferences (volume, theme mode, ...).
+
+        The management page runs in a sandboxed iframe without
+        allow-same-origin, so localStorage is unavailable; preferences live in
+        the plugin KV store instead.
+        """
+        stored = await plugin.get_kv_data(UI_PREFS_KEY, {})
+        return json_response(_sanitize_prefs(stored))
+
+    async def ui_prefs_set():
+        payload = await request.json(default={})
+        stored = await plugin.get_kv_data(UI_PREFS_KEY, {})
+        merged = _sanitize_prefs(
+            {**(stored if isinstance(stored, dict) else {}), **(payload or {})}
+        )
+        await plugin.put_kv_data(UI_PREFS_KEY, merged)
+        return json_response(merged)
+
+    register(
+        f"{PAGE_PREFIX}/ui/prefs",
+        ui_prefs_get,
+        ["GET"],
+        "Read dashboard UI preferences",
+    )
+    register(
+        f"{PAGE_PREFIX}/ui/prefs",
+        ui_prefs_set,
+        ["POST"],
+        "Save dashboard UI preferences",
     )

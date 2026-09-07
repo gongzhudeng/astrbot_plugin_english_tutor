@@ -4,136 +4,402 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>英语私教 · 数据管理</title>
+<script>
+  /* Paint the stored theme before first paint. The dashboard already stamps
+     data-theme="dark|light" on <html> server-side; localStorage is blocked in
+     the sandboxed iframe, so a manual choice only survives the first paint
+     when the backend prefs round-trip has happened (JS fixes it up later). */
+  (function () {
+    try {
+      var mode = "auto";
+      try {
+        mode = (JSON.parse(localStorage.getItem("en_tutor_ui_prefs") || "{}") || {}).theme_mode || "auto";
+      } catch (e) { /* opaque origin */ }
+      var hostDark = document.documentElement.getAttribute("data-theme") === "dark";
+      if (mode === "dark" || (mode === "auto" && hostDark)) {
+        document.documentElement.classList.add("dark");
+      }
+    } catch (e) { /* ignore */ }
+  })();
+</script>
 <style>
   :root {
-    --bg: #f6f4ef;
-    --panel: #ffffff;
-    --text: #2b2a28;
-    --muted: #8a8072;
-    --line: #e7e1d3;
-    --accent: #b45309;
-    --accent-soft: #fdf3e7;
-    --ok: #2e7d32;
-    --danger: #c0392b;
-    --shadow: 0 1px 3px rgba(90, 75, 40, 0.08);
+    --bg: #f7f3e9;
+    --panel: #fffdf7;
+    --panel-2: #f4eee1;
+    --panel-3: #eee6d5;
+    --text: #221e17;
+    --text-soft: #4b4436;
+    --muted: #8f8676;
+    --line: #e5dccb;
+    --line-strong: #d1c7b1;
+    --accent: #9c4f27;
+    --accent-soft: #f7ecdd;
+    --ok: #3d7448;
+    --danger: #a03c2c;
+    --radius: 8px;
+    --serif: Georgia, "Iowan Old Style", "Palatino Linotype", Palatino,
+             "Times New Roman", "Songti SC", "SimSun", serif;
+    --sans: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+            "Helvetica Neue", Arial, sans-serif;
+    /* Paper stock: fractal-noise speckle, woven fibres, and a soft top light.
+       All of it lives in the body background so no extra stacking layer is
+       created (the FAB/overlay/toast z-indexes stay untouched). */
+    --paper-noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='.055'/%3E%3C/svg%3E");
+    --fiber-a: rgba(118, 98, 68, .030);
+    --fiber-b: rgba(118, 98, 68, .020);
+    --paper-glow: rgba(255, 253, 243, .60);
+    --paper-edge: rgba(120, 100, 70, .05);
   }
-  body.dark {
-    --bg: #1c1c1a;
-    --panel: #262624;
-    --text: #e8e4da;
-    --muted: #9b937f;
-    --line: #3a3934;
-    --accent: #e8963c;
-    --accent-soft: #33291c;
-    --ok: #7cb87f;
-    --danger: #e07060;
-    --shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  html.dark {
+    --bg: #191714;
+    --panel: #221f1a;
+    --panel-2: #282419;
+    --panel-3: #2f2a1e;
+    --text: #ece4d6;
+    --text-soft: #cec6b6;
+    --muted: #948d7c;
+    --line: #332f27;
+    --line-strong: #423c31;
+    --accent: #d89a58;
+    --accent-soft: #342a1d;
+    --ok: #85ba8d;
+    --danger: #d97b69;
+    --paper-noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)' opacity='.05'/%3E%3C/svg%3E");
+    --fiber-a: rgba(255, 240, 214, .022);
+    --fiber-b: rgba(255, 240, 214, .014);
+    --paper-glow: rgba(255, 234, 196, .040);
+    --paper-edge: rgba(0, 0, 0, .30);
   }
   * { box-sizing: border-box; }
   body {
-    margin: 0;
-    background: var(--bg);
-    color: var(--text);
-    font-family: "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
-    font-size: 14px;
+    margin: 0; color: var(--text);
+    background-color: var(--bg);
+    background-image:
+      var(--paper-noise),
+      repeating-linear-gradient(0deg, var(--fiber-a) 0 1px, transparent 1px 3px),
+      repeating-linear-gradient(90deg, var(--fiber-b) 0 1px, transparent 1px 4px),
+      radial-gradient(ellipse 130% 62% at 50% -12%, var(--paper-glow), transparent 68%);
+    background-attachment: fixed;
+    font-family: var(--sans); font-size: 14.5px; line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    transition: background-color .3s ease, color .3s ease;
   }
-  .wrap { max-width: 1080px; margin: 0 auto; padding: 20px 18px 150px; }
+  /* position:relative + z-index:1 lifts the whole column ABOVE .bg-decor
+     (which is fixed at z-index:0). Without this, painted positioned layers
+     beat static content in paint order, so the watermark words and color
+     washes sat ON TOP of the cards — in dark mode they read as text bleeding
+     through the panel. With this, the opaque .panel background actually
+     occludes the decoration, and only the gutters stay decorated. */
+  .wrap { position: relative; z-index: 1; max-width: 900px; margin: 0 auto; padding: 26px 20px 150px; }
 
-  .head { display: flex; align-items: baseline; gap: 12px; margin: 6px 2px 16px; }
-  .head h1 { font-size: 20px; font-weight: 700; margin: 0; }
-  .head .sub { color: var(--muted); font-size: 12.5px; }
-
-  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 18px; }
-  .stat {
-    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
-    padding: 12px 14px; box-shadow: var(--shadow);
+  /* Masthead: thick-over-thin rule, like the front page of a broadsheet. */
+  .head {
+    display: flex; align-items: baseline; gap: 12px;
+    margin: 4px 0 0; padding-bottom: 11px;
+    border-bottom: 3px double var(--line-strong);
   }
-  .stat .num { font-size: 22px; font-weight: 700; font-family: Georgia, serif; }
-  .stat .label { font-size: 12px; color: var(--muted); margin-top: 2px; }
-  .stat.warn .num { color: var(--accent); }
+  .head h1 {
+    font-family: var(--serif); font-size: 25px; font-weight: 700; margin: 0;
+    letter-spacing: 1.5px;
+  }
+  .head .sub { color: var(--muted); font-size: 11.5px; letter-spacing: .4px; }
+  .head .build-tag {
+    align-self: center; font-size: 10px; letter-spacing: .6px;
+    color: var(--accent); border: 1px solid var(--line-strong);
+    border-radius: 3px; padding: 2px 6px; background: var(--accent-soft);
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  .head .spacer { flex: 1; }
+  .theme-cycle {
+    width: 30px; height: 30px; flex: 0 0 auto; align-self: center;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 1px solid var(--line-strong); border-radius: 999px;
+    background: transparent; color: var(--muted); cursor: pointer;
+    font-size: 14px; padding: 0; font-family: inherit;
+    transition: color .15s, border-color .15s;
+  }
+  .theme-cycle:hover { border-color: var(--accent); color: var(--accent); }
 
-  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 14px; flex-wrap: wrap; }
+  /* Read-only band: deliberately quieter than the section nav below it. */
+  .stats {
+    display: flex; flex-wrap: wrap; gap: 6px 0; margin: 12px 0 0;
+    padding: 9px 0 11px; border-bottom: 1px solid var(--line);
+  }
+  .stat { display: flex; align-items: baseline; gap: 6px; padding: 0 16px; }
+  .stat:first-child { padding-left: 0; }
+  .stat + .stat { border-left: 1px solid var(--line); }
+  .stat .num {
+    font-family: var(--serif); font-size: 17px; font-weight: 500;
+    font-variant-numeric: tabular-nums; color: var(--text-soft);
+  }
+  .stat .label { font-size: 11.5px; color: var(--muted); }
+  .stat.warn .num { color: var(--accent); font-weight: 600; }
+
+  /* Section nav: heavier than the stats band, with a real hover state, so
+     the clickable row finally out-reads the read-only one. */
+  .tabs {
+    display: flex; gap: 2px; margin: 14px 0 16px; flex-wrap: wrap;
+    border-bottom: 1px solid var(--line-strong);
+  }
   .tab {
-    appearance: none; background: none; border: none; cursor: pointer;
-    padding: 9px 14px; font-size: 14px; color: var(--muted); font-family: inherit;
-    border-bottom: 2px solid transparent; margin-bottom: -1px;
+    appearance: none; background: none; cursor: pointer;
+    padding: 9px 15px; font-size: 15px; font-weight: 500;
+    color: var(--text-soft); font-family: inherit;
+    border: none; border-bottom: 2px solid transparent;
+    margin-bottom: -1px; letter-spacing: .5px;
+    transition: color .16s, border-color .16s;
   }
-  .tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+  .tab:hover { color: var(--accent); border-bottom-color: var(--line-strong); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 700; }
 
-  .toolbar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+  .toolbar { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; align-items: center; }
   input, select {
-    background: var(--panel); color: var(--text); border: 1px solid var(--line);
-    border-radius: 8px; padding: 7px 10px; font-size: 13px; font-family: inherit; outline: none;
+    background: var(--panel); color: var(--text); border: 1px solid var(--line-strong);
+    border-radius: 6px; padding: 7px 10px; font-size: 13px; font-family: inherit; outline: none;
   }
   input:focus, select:focus { border-color: var(--accent); }
   button.btn {
-    background: var(--panel); color: var(--text); border: 1px solid var(--line);
-    border-radius: 8px; padding: 7px 14px; font-size: 13px; cursor: pointer; font-family: inherit;
+    background: var(--panel); color: var(--text); border: 1px solid var(--line-strong);
+    border-radius: 6px; padding: 7px 14px; font-size: 13px; cursor: pointer; font-family: inherit;
   }
   button.btn:hover { border-color: var(--accent); color: var(--accent); }
-  button.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-  button.btn.primary:hover { filter: brightness(1.08); color: #fff; }
+  /* Primary stays the most prominent control on the row without shouting:
+     tinted fill + accent outline instead of a solid block of colour. */
+  button.btn.primary {
+    background: var(--accent-soft); border-color: var(--accent);
+    color: var(--accent); font-weight: 600;
+  }
+  button.btn.primary:hover { background: var(--accent); color: #fff; }
   button.btn.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
   button.btn.danger:hover { filter: brightness(1.08); color: #fff; }
-  button.link { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 12.5px; padding: 4px 6px; font-family: inherit; }
-  button.link:hover { color: var(--accent); }
-  button.link.danger:hover { color: var(--danger); }
 
-  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); overflow: hidden; }
+  /* Framed mini buttons replace the old bare text links (编辑 / 删除). */
+  button.mini {
+    display: inline-flex; align-items: center; gap: 5px;
+    height: 30px; padding: 0 12px; font-size: 12.5px; font-family: inherit;
+    background: var(--panel); color: var(--text-soft);
+    border: 1px solid var(--line-strong); border-radius: 6px; cursor: pointer;
+    transition: color .15s, border-color .15s, background .15s;
+  }
+  button.mini:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+  button.mini:active { transform: translateY(1px); }
+  button.mini.danger:hover { border-color: var(--danger); color: var(--danger); background: transparent; }
 
-  /* ---- card list (sentences / errors / vocab) ---- */
-  .card { padding: 13px 16px; border-bottom: 1px solid var(--line); }
+  .panel {
+    background: var(--panel); border: 1px solid var(--line-strong);
+    border-radius: var(--radius); overflow: hidden;
+    box-shadow: 0 1px 0 var(--paper-edge);
+  }
+
+  /* ---- card list (sentences / errors / vocab) ----
+     The whole row is the "详情" control now: click anywhere to open the
+     detail dialog. Buttons inside still win, so 播放/编辑/删除 keep working. */
+  .card {
+    position: relative; padding: 18px 26px 18px 20px;
+    border-bottom: 1px solid var(--line); cursor: pointer;
+    transition: background .22s ease, box-shadow .22s ease;
+  }
   .card:last-child { border-bottom: none; }
-  .card:hover { background: color-mix(in srgb, var(--accent-soft) 25%, var(--panel)); }
+  .card:hover {
+    background: var(--panel-2);
+    /* Warm whisper on hover: a 1px inset accent line + a soft outer halo.
+       Stays subtle — the cursor is the focus, not the card chrome. */
+    box-shadow:
+      inset 3px 0 0 var(--accent),
+      0 1px 0 var(--accent-soft);
+  }
+  /* Hairline accent bar + a trailing chevron: the row reads as openable. */
+  .card::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 2px;
+    background: var(--accent); transform: scaleY(0);
+    transition: transform .18s ease;
+  }
+  .card:hover::before { transform: scaleY(1); }
+  .card::after {
+    content: "›"; position: absolute; right: 9px; top: 50%;
+    transform: translateY(-50%); font-size: 21px; line-height: 1;
+    color: var(--accent); opacity: 0; pointer-events: none;
+    transition: opacity .18s ease, transform .18s ease;
+  }
+  .card:hover::after { opacity: .5; transform: translateY(-50%) translateX(2px); }
   .card-main {
-    font-family: Georgia, "Times New Roman", serif;
-    font-size: 16.5px; font-weight: 500; line-height: 1.45;
+    font-family: var(--serif); font-size: 18px; font-weight: 500; line-height: 1.5;
+    letter-spacing: .15px; color: var(--text);
   }
-  .card-zh { color: var(--muted); font-size: 13px; margin-top: 4px; line-height: 1.5; }
-  .card-corrected { font-family: Georgia, "Times New Roman", serif; color: var(--ok); font-size: 14.5px; margin-top: 3px; }
-  .card-example { font-family: Georgia, "Times New Roman", serif; font-size: 13.5px; opacity: 0.85; margin-top: 4px; line-height: 1.5; }
-  .card-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 9px; }
+  .card-zh { color: var(--muted); font-size: 13px; margin-top: 6px; line-height: 1.65; }
+  .card-corrected { font-family: var(--serif); color: var(--ok); font-size: 15px; margin-top: 4px; }
+  .card-example { font-family: var(--serif); font-size: 14px; color: var(--text-soft); margin-top: 6px; line-height: 1.6; }
+  .card-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 12px; }
   .card-meta .spacer { flex: 1; }
-  .card-details {
-    display: none; margin-top: 8px; padding: 8px 12px;
-    background: color-mix(in srgb, var(--accent-soft) 45%, var(--panel));
-    border-radius: 8px; font-size: 12.5px; color: var(--muted);
-  }
-  .card.open .card-details { display: block; }
-  body.expand-all .card .card-details { display: block; }
-  .detail-line { margin: 3px 0; line-height: 1.55; }
-  .detail-label {
-    display: inline-block; font-size: 11px; border: 1px solid var(--line);
-    border-radius: 4px; padding: 0 5px; margin-right: 6px; vertical-align: 1px;
-  }
-  .detail-line .en-text { white-space: pre-line; }
   body.hide-zh .zh-part { display: none; }
 
+  /* ---- motion ----
+     Deliberately small: a short rise as list rows land, a fade-and-settle on
+     dialogs. Everything is switched off for reduced-motion users. */
+  @keyframes riseIn { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes dialogIn {
+    from { opacity: 0; transform: translateY(10px) scale(.985); }
+    to { opacity: 1; transform: none; }
+  }
+  /* Masthead characters drift in like ink settling on paper. Once-only: each
+     .ch gets its own animation-delay set inline by splitMasthead() below. */
+  @keyframes charDrift {
+    0%   { opacity: 0; transform: translateY(6px) skewX(-7deg); filter: blur(2.5px); }
+    55%  { filter: blur(0); }
+    100% { opacity: 1; transform: none; filter: blur(0); }
+  }
+  .head h1 .ch {
+    display: inline-block;
+    animation: charDrift .55s cubic-bezier(.22,.61,.36,1) both;
+  }
+  .panel > * { animation: riseIn .34s cubic-bezier(.22, .61, .36, 1) both; }
+  .panel > *:nth-child(1) { animation-delay: .00s; }
+  .panel > *:nth-child(2) { animation-delay: .03s; }
+  .panel > *:nth-child(3) { animation-delay: .06s; }
+  .panel > *:nth-child(4) { animation-delay: .09s; }
+  .panel > *:nth-child(5) { animation-delay: .12s; }
+  .panel > *:nth-child(6) { animation-delay: .15s; }
+  .panel > *:nth-child(7) { animation-delay: .18s; }
+  .panel > *:nth-child(8) { animation-delay: .21s; }
+  .panel > *:nth-child(n+9) { animation-delay: .24s; }
+  @media (prefers-reduced-motion: reduce) {
+    .panel > * { animation: none; }
+    .audio-btn[data-state="loading"] { animation: none; }
+    .head h1 .ch { animation: none; }
+    .bg-decor-layer { animation: none; }
+    body { transition: none; }
+  }
+
+  /* ---- background decoration (slow-drifting ink + paper dust) ----
+     Lives behind .wrap. Two layers: blobs (warm color washes) and dust
+     (fractal noise). Both drift on a long, low-frequency cycle so the eye
+     barely notices but the page never feels frozen. Both layers go inert
+     when html.motion-off is set (user toggle in the floating panel). */
+  .bg-decor {
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    overflow: hidden;
+  }
+  .bg-decor-layer {
+    position: absolute; inset: -8% -6%;
+    background-repeat: no-repeat;
+    will-change: transform;
+  }
+  /* Corner color washes removed entirely: across three iterations the
+     top-left ellipse kept getting reported as a "stray block" (it read as a
+     rendering artifact on dark backgrounds, and its 38s drift read as
+     "moving like the watermark"). The drifting watermark words plus the
+     full-page grain are enough to keep the gutters alive. */
+  .bg-decor-dust {
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='320'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.32 0 0 0 0 0.26 0 0 0 0 0.18 0 0 0 0.85 0'/></filter><rect width='320' height='320' filter='url(%23n)'/></svg>");
+    background-size: 320px 320px;
+    opacity: 0.12;
+    animation: driftDust 70s linear infinite;
+  }
+  html.dark .bg-decor-dust { opacity: 0.16; }
+  /* Big, faint watermark words drifting across both sides — fills the empty
+     gutters the user complained about without competing with the content.
+     Two SVGs in different positions on long cycles so the eye keeps seeing
+     something new. */
+  .bg-decor-word {
+    position: absolute;
+    font-family: var(--serif);
+    font-weight: 700;
+    letter-spacing: .02em;
+    pointer-events: none;
+    white-space: nowrap;
+    color: rgba(162, 84, 42, 0.07);
+    will-change: transform, opacity;
+  }
+  .bg-decor-word.w1 {
+    left: 3vw; top: 18vh; font-size: 12vw; transform: rotate(-9deg);
+    animation: wordDriftA 16s ease-in-out infinite alternate;
+  }
+  .bg-decor-word.w2 {
+    right: 3vw; bottom: 14vh; font-size: 9.5vw; transform: rotate(6deg);
+    animation: wordDriftB 20s ease-in-out infinite alternate;
+  }
+  html.dark .bg-decor-word { color: rgba(219, 154, 85, 0.10); }
+  /* Drift carries each word a bit further than before and breathes its
+     opacity ±15% on the way, so the motion reads clearly at a glance
+     without ever becoming busy. */
+  @keyframes wordDriftA {
+    0%   { transform: rotate(-9deg) translate3d(0, 0, 0); opacity: .72; }
+    100% { transform: rotate(-9deg) translate3d(46px, -30px, 0); opacity: 1; }
+  }
+  @keyframes wordDriftB {
+    0%   { transform: rotate(6deg) translate3d(0, 0, 0); opacity: 1; }
+    100% { transform: rotate(6deg) translate3d(-38px, 26px, 0); opacity: .72; }
+  }
+  /* The earlier mouse-following gutter glow was removed: users mistook its
+     540px warm radial for a stray "block in the corner" and the "it follows
+     my cursor" behaviour for a bug. The drifting watermark words plus the
+     full-page grain already give the gutters enough life without an
+     interactive element. */
+  @keyframes driftDust {
+    0%   { transform: translate3d(0, 0, 0); }
+    100% { transform: translate3d(-72px, -48px, 0); }
+  }
+  /* User-toggle (in the floating panel) and the OS reduced-motion switch
+     both stop the decoration. The mouse-following glow is no longer present. */
+  html.motion-off .bg-decor-layer,
+  html.motion-off .bg-decor-word { animation: none; }
+  html.motion-off .panel > * { animation: none; }
+  html.motion-off .audio-btn[data-state="loading"] { animation: none; }
+  html.motion-off .head h1 .ch { animation: none; }
+
   .muted { color: var(--muted); font-size: 12.5px; }
-  .en { font-family: Georgia, "Times New Roman", serif; }
-  .audio-stack { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
-  .audio-row { display: flex; align-items: center; gap: 5px; }
-  .audio-player { width: 168px; height: 30px; vertical-align: middle; }
-  button.audio-btn { width: 30px; height: 30px; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: var(--panel); color: var(--accent); cursor: pointer; font-size: 14px; }
-  button.audio-btn:hover { border-color: var(--accent); }
-  .audio-candidate { display: flex; align-items: center; gap: 5px; padding-top: 4px; border-top: 1px dashed var(--line); }
-  .audio-candidate .audio-player { width: 145px; }
-  .audio-apply { color: var(--ok); }
-  .pill { display: inline-block; font-size: 11.5px; border-radius: 999px; padding: 2px 9px; border: 1px solid var(--line); color: var(--muted); }
+  .en { font-family: var(--serif); }
+
+  /* ---- audio ---- */
+  .audio-stack { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+  .audio-row { display: flex; align-items: center; gap: 6px; }
+  .audio-btn {
+    flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+    padding: 0; border: 1px solid var(--line-strong); border-radius: 50%;
+    background: transparent; color: var(--accent); cursor: pointer; font-family: inherit;
+    line-height: 1; transition: background .15s, border-color .15s, color .15s;
+  }
+  .audio-btn.lg { width: 40px; height: 40px; font-size: 15px; }
+  .audio-btn.sm { width: 32px; height: 32px; font-size: 13px; }
+  .audio-btn.ghost { color: var(--muted); }
+  .audio-btn:hover { border-color: var(--accent); background: var(--accent-soft); }
+  .audio-btn.ghost:hover { color: var(--accent); }
+  .audio-btn[data-state="playing"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .audio-btn[data-state="loading"] { color: var(--muted); animation: pulse 1s ease-in-out infinite; }
+  .audio-btn[data-state="error"] { color: var(--danger); border-color: var(--danger); }
+  .audio-btn.act-ok:hover { border-color: var(--ok); color: var(--ok); background: transparent; }
+  .audio-btn.act-no:hover { border-color: var(--danger); color: var(--danger); background: transparent; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+  @media (prefers-reduced-motion: reduce) { .audio-btn[data-state="loading"] { animation: none; } }
+  /* The candidate bundle reads as one pill: 试听 / 采用 / 丢弃. */
+  .audio-candidate {
+    display: flex; align-items: center; gap: 5px;
+    padding: 4px 5px 4px 10px; border: 1px dashed var(--line-strong);
+    border-radius: 999px; background: var(--panel-2);
+  }
+  .cand-tag { font-size: 11px; letter-spacing: .4px; color: var(--muted); }
+  .practice-audio { margin-top: 6px; }
+
+  .pill {
+    display: inline-block; font-size: 11px; letter-spacing: .3px;
+    border-radius: 3px; padding: 1px 7px; border: 1px solid var(--line-strong); color: var(--muted);
+  }
   .pill.open { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
   .pill.resolved { color: var(--ok); border-color: var(--ok); }
 
-  .practice-card { padding: 14px 16px; border-bottom: 1px solid var(--line); }
+  .practice-card { padding: 20px; border-bottom: 1px solid var(--line); }
   .practice-card:last-child { border-bottom: none; }
   .practice-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
-  .practice-head .date { font-weight: 600; font-family: Georgia, serif; font-size: 15px; }
+  .practice-head .date { font-weight: 600; font-family: var(--serif); font-size: 17px; }
   .practice-head .spacer { flex: 1; }
-  .practice-item { padding: 7px 0; border-top: 1px dashed var(--line); }
+  .practice-item { padding: 11px 0; border-top: 1px dashed var(--line); }
   .practice-item:first-of-type { border-top: none; }
-  .practice-item .en-text { font-family: Georgia, "Times New Roman", serif; font-size: 16.5px; line-height: 1.5; }
+  .practice-item .en-text { font-family: var(--serif); font-size: 17px; line-height: 1.55; }
   .practice-item .zh { color: var(--muted); font-size: 13px; margin-top: 2px; }
 
-  /* ---- day-wide playback overlay ---- */
+  /* ---- day-wide playback overlay (keeps the native player) ---- */
   .all-player-dialog { width: min(720px, 92vw); }
   .all-player-dialog .all-status { color: var(--muted); font-size: 13px; padding: 18px 0; text-align: center; }
   .all-player-dialog .all-box { padding: 4px 0 2px; }
@@ -148,73 +414,150 @@
     cursor: pointer; font-size: 13.5px;
   }
   .all-playlist-item:last-child { border-bottom: none; }
-  .all-playlist-item:hover { background: color-mix(in srgb, var(--accent-soft) 40%, var(--panel)); }
+  .all-playlist-item:hover { background: var(--panel-2); }
   .all-playlist-item .idx { color: var(--muted); font-size: 12px; min-width: 16px; }
   .all-playlist-item .stamp { margin-left: auto; }
   .all-playlist-item.active .en-text { color: var(--accent); font-weight: 600; }
 
-  .msg-row { display: flex; gap: 10px; padding: 8px 14px; border-bottom: 1px solid var(--line); }
+  .msg-row { display: flex; gap: 10px; align-items: center; padding: 8px 20px; border-bottom: 1px solid var(--line); }
   .msg-row:last-child { border-bottom: none; }
   .msg-role { min-width: 42px; font-size: 12px; color: var(--muted); padding-top: 2px; }
   .msg-role.user { color: var(--accent); }
   .msg-content { flex: 1; }
-  .msg-row > .link { align-self: flex-start; visibility: hidden; }
-  .msg-row:hover > .link { visibility: visible; }
+  .msg-row > .mini { visibility: hidden; }
+  .msg-row:hover > .mini { visibility: visible; }
   .msg-divider {
     text-align: center; color: var(--muted); font-size: 12px; padding: 5px 0;
-    background: color-mix(in srgb, var(--accent-soft) 35%, var(--panel));
-    border-bottom: 1px solid var(--line);
+    background: var(--panel-2); border-bottom: 1px solid var(--line);
   }
 
   .pager { display: flex; align-items: center; gap: 10px; justify-content: flex-end; padding: 12px 14px; }
   .pager .info { color: var(--muted); font-size: 12.5px; }
-
-  .empty { text-align: center; color: var(--muted); padding: 42px 0; }
+  .empty {
+    text-align: center; color: var(--muted); padding: 58px 20px;
+    font-family: var(--serif); font-style: italic; font-size: 14.5px;
+  }
   .toast {
     position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
-    background: var(--text); color: var(--bg); border-radius: 8px; padding: 9px 18px;
-    font-size: 13px; opacity: 0; transition: opacity 0.25s; pointer-events: none; z-index: 50;
+    background: var(--text); color: var(--bg); border-radius: 6px; padding: 9px 16px;
+    font-size: 13px; opacity: 0; transition: opacity .25s; pointer-events: none; z-index: 50;
   }
-  .toast.show { opacity: 0.92; }
+  .toast.show { opacity: .94; }
 
+  /* Backdrop dims + blurs the page so the dialog pops without erasing the
+     context behind it. backdrop-filter needs WebKit prefix for Safari. */
   .overlay {
-    position: fixed; inset: 0; background: rgba(20, 18, 12, 0.45);
+    position: fixed; inset: 0;
+    background: rgba(36, 32, 25, 0.42);
+    backdrop-filter: blur(4px) saturate(.85);
+    -webkit-backdrop-filter: blur(4px) saturate(.85);
     display: none; align-items: center; justify-content: center; z-index: 40;
+    padding: 24px 16px;
+    animation: fadeIn .18s ease both;
   }
   .overlay.show { display: flex; }
   .dialog {
-    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
-    width: min(480px, 92vw); padding: 20px 22px; box-shadow: 0 8px 30px rgba(0,0,0,0.18);
+    position: relative;
+    background: var(--panel); border: 1px solid var(--line-strong); border-radius: var(--radius);
+    width: min(480px, 92vw); padding: 20px 22px;
+    animation: dialogIn .22s cubic-bezier(.22, .61, .36, 1) both;
   }
-  .dialog h3 { margin: 0 0 14px; font-size: 15.5px; }
+  .dialog h3 { margin: 0 0 16px; font-size: 16px; letter-spacing: .3px; }
   .dialog label { display: block; font-size: 12.5px; color: var(--muted); margin: 10px 0 4px; }
   .dialog input, .dialog select, .dialog textarea { width: 100%; }
-  .dialog textarea { min-height: 60px; resize: vertical; background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; font-family: inherit; font-size: 13px; outline: none; }
+  .dialog textarea {
+    min-height: 60px; resize: vertical; background: var(--panel); color: var(--text);
+    border: 1px solid var(--line-strong); border-radius: 6px; padding: 7px 10px;
+    font-family: inherit; font-size: 13px; outline: none;
+  }
   .dialog .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
   .dialog p { margin: 0; font-size: 13.5px; line-height: 1.6; }
 
-  /* ---- floating tool panel (fixed, bottom-right) ----
-     right:16px is only the pre-JS fallback; positionFab() moves the panel to
-     hug the content column's right edge so it never drifts to the far window
-     edge on wide screens. */
+  /* ---- detail dialog ----
+     Opened by clicking anywhere on a row (the old inline 详情 toggle is gone,
+     because expanding in place pushed the buttons out from under the cursor).
+     Wider than the day-wide player, and every field gets its own block so the
+     text can breathe instead of being squeezed into a 12px side note. */
+  .detail-dialog {
+    width: min(760px, 94vw); max-height: 88vh;
+    display: flex; flex-direction: column; padding: 26px 28px 18px;
+  }
+  .detail-dialog .dialog-x {
+    position: absolute; top: 14px; right: 14px;
+    width: 34px; height: 34px; border-radius: 6px;
+    border: 1px solid var(--line-strong); background: var(--panel);
+    color: var(--muted); cursor: pointer; font-size: 15px; font-family: inherit;
+    display: inline-flex; align-items: center; justify-content: center; padding: 0;
+    transition: color .15s, border-color .15s, background .15s;
+  }
+  .detail-dialog .dialog-x:hover {
+    color: var(--danger); border-color: var(--danger); background: var(--accent-soft);
+  }
+  .detail-kicker {
+    font-size: 11px; letter-spacing: 1.4px; color: var(--accent);
+    margin-bottom: 9px; text-transform: uppercase;
+  }
+  .detail-title {
+    font-family: var(--serif); font-size: 25px; line-height: 1.4; font-weight: 500;
+    margin: 0 46px 6px 0; letter-spacing: .2px; color: var(--text);
+    white-space: pre-line;
+  }
+  .detail-sub { color: var(--muted); font-size: 13.5px; }
+  .detail-head-actions { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+  .detail-head-actions:empty { display: none; }
+  .detail-head-actions .audio-stack { align-items: flex-start; }
+  .detail-scroll {
+    overflow: auto; margin: 16px -28px 0; padding: 2px 28px 0;
+    border-top: 1px solid var(--line);
+  }
+  .dfield { padding: 15px 0; border-bottom: 1px dashed var(--line); }
+  .dfield:last-child { border-bottom: none; }
+  .dfield .dlabel {
+    font-size: 10.5px; letter-spacing: 1.3px; color: var(--muted); margin-bottom: 5px;
+  }
+  .dfield .dvalue {
+    font-size: 15px; line-height: 1.78; color: var(--text-soft); white-space: pre-line;
+  }
+  .dfield .dvalue.en { font-family: var(--serif); font-size: 16.5px; color: var(--text); }
+  .dfield .dvalue.mono { font-family: var(--sans); font-size: 14px; }
+  .detail-dialog .actions {
+    margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line);
+    align-items: center;
+  }
+  .detail-dialog .actions .spacer { flex: 1; }
+
+  /* ---- floating tool panel ----
+     Pinned to .wrap's right edge when the viewport has room, falls back to
+     the viewport's bottom-right corner when it doesn't. positionFab() in
+     JS makes that choice every resize / state change. The foot is
+     symmetric: collapse control on the left, back-to-top on the right. */
   .fab {
-    position: fixed; right: 16px; bottom: 18px; width: 220px; z-index: 30;
-    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
-    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.16); padding: 10px 12px;
+    position: fixed; right: 18px; bottom: 18px; width: 236px; z-index: 30;
+    background: var(--panel); border: 1px solid var(--line-strong);
+    border-radius: var(--radius);
+    box-shadow: 0 4px 18px var(--paper-edge); padding: 12px;
   }
-  .fab.min { width: auto; padding: 0; border-radius: 999px; }
+  .fab.min { width: auto; padding: 6px; border-radius: 999px; }
   .fab.min .fab-body { display: none; }
-  .fab.min .fab-toggle {
-    position: static; display: flex; align-items: center; justify-content: center;
-    width: 42px; height: 42px; font-size: 20px; border-radius: 999px;
+  /* Symmetric foot: switch on the left, back-to-top on the right. */
+  .fab-foot {
+    display: flex; justify-content: space-between; align-items: center; gap: 8px;
   }
-  .fab-toggle {
-    position: absolute; top: 6px; right: 8px; width: 26px; height: 26px;
-    display: flex; align-items: center; justify-content: center;
-    background: none; border: none; color: var(--muted); cursor: pointer;
-    font-size: 16px; padding: 0; font-family: inherit; border-radius: 999px;
+  .fab:not(.min) .fab-foot {
+    margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line);
   }
-  .fab-toggle:hover { color: var(--accent); background: var(--accent-soft); }
+  .fab-btn {
+    width: 36px; height: 36px; flex: 0 0 auto;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 1px solid var(--line-strong); border-radius: 6px;
+    background: var(--panel); color: var(--text-soft); cursor: pointer;
+    font-size: 15px; padding: 0; font-family: inherit;
+    transition: color .15s, border-color .15s, background .15s;
+  }
+  .fab-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+  .fab-btn:active { transform: translateY(1px); }
+  .fab.min .fab-btn { background: transparent; border-color: transparent; }
+  .fab.min .fab-btn:hover { border-color: var(--line-strong); background: var(--accent-soft); }
   .fab-section { margin-top: 9px; }
   .fab-section:first-child { margin-top: 0; }
   .fab-label { font-size: 11.5px; color: var(--muted); margin-bottom: 5px; }
@@ -222,14 +565,38 @@
   .fab .fab-row { display: flex; gap: 6px; }
   .fab .fab-row .btn { flex: 1; padding-left: 6px; padding-right: 6px; }
   .fab select { width: 100%; margin-bottom: 6px; }
-  .fab .audio-btn { width: 100%; border-radius: 8px; }
+  .fab-row.seg .btn { padding-left: 4px; padding-right: 4px; font-size: 12.5px; }
+  .vol-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  .vol-row .btn { width: auto; flex: 0 0 auto; padding: 4px 8px; font-size: 13px; }
+  .vol-row input[type="range"] {
+    flex: 1; min-width: 0; width: auto; padding: 0; border: none; background: transparent;
+    accent-color: var(--accent);
+  }
+  .vol-row input[type="range"]:focus { border: none; }
+  .vol-row .vol-num {
+    flex: 0 0 24px; text-align: right; font-size: 11.5px; color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
 </style>
 </head>
 <body>
+<!-- Background decoration: slow-drifting paper dust + two large watermark
+     words. Sits behind .wrap in painting order (wrap is positioned with
+     z-index:1, so the opaque panels occlude the decoration and only the
+     gutters stay decorated). The fab (z-30), dialogs (z-40) and toast
+     (z-50) all sit above this. -->
+<div class="bg-decor" aria-hidden="true">
+  <div class="bg-decor-layer bg-decor-dust"></div>
+  <div class="bg-decor-word w1">Practice</div>
+  <div class="bg-decor-word w2">English · Daily</div>
+</div>
 <div class="wrap">
   <div class="head">
     <h1>英语私教 · 数据管理</h1>
     <span class="sub" id="bindInfo"></span>
+    <span class="build-tag" id="buildTag"></span>
+    <span class="spacer"></span>
+    <button class="theme-cycle" id="themeCycle" title="切换外观（跟随 / 亮色 / 暗色）">◐</button>
   </div>
 
   <div class="stats" id="stats"></div>
@@ -251,27 +618,35 @@
   </div>
 </div>
 
-<!-- Floating tool panel: stays pinned bottom-right regardless of scrolling.
-     Starts collapsed by default; JS restores the remembered state. -->
+<!-- Floating tool panel: pinned bottom-right, starts collapsed. The toggle
+     sits at the panel's bottom-right corner in both states. -->
 <div class="fab min" id="fab">
-  <button class="fab-toggle" id="fabToggle" title="收起面板">▾</button>
   <div class="fab-body">
+    <div class="fab-section">
+      <div class="fab-label">外观</div>
+      <div class="fab-row seg" id="themeSeg">
+        <button class="btn" data-theme-mode="auto">跟随</button>
+        <button class="btn" data-theme-mode="light">亮色</button>
+        <button class="btn" data-theme-mode="dark">暗色</button>
+      </div>
+    </div>
     <div class="fab-section">
       <div class="fab-label">显示</div>
       <button class="btn" id="hideZhBtn">纯英文模式：关</button>
       <div style="height:6px"></div>
-      <button class="btn" id="expandBtn">展开全部详情</button>
+      <button class="btn" id="motionBtn">动态效果：开</button>
     </div>
-    <div class="fab-section" id="fabAudio" style="display:none">
+    <div class="fab-section" id="fabAudio">
       <div class="fab-label">音频</div>
       <div id="fabAudioControls"></div>
     </div>
     <div class="fab-section">
-      <div class="fab-row">
-        <button class="btn" id="topBtn">回到顶部</button>
-        <button class="btn" id="reloadBtn">刷新列表</button>
-      </div>
+      <button class="btn" id="reloadBtn">刷新列表</button>
     </div>
+  </div>
+  <div class="fab-foot">
+    <button class="fab-btn" id="fabToggle" title="展开面板" aria-label="展开面板">⚙</button>
+    <button class="fab-btn" id="fabTop" title="回到顶部" aria-label="回到顶部">↑</button>
   </div>
 </div>
 
@@ -317,6 +692,26 @@
   </div>
 </div>
 
+<!-- Row detail. Opened by clicking anywhere on a sentence / error / vocab row
+     (the old inline 详情 toggle pushed the row buttons away from the cursor).
+     Closes on ✕, on 关闭, on the backdrop, or on Esc. -->
+<div class="overlay" id="detailOverlay">
+  <div class="dialog detail-dialog" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
+    <button class="dialog-x" id="detailClose" title="关闭（Esc）" aria-label="关闭">✕</button>
+    <div class="detail-kicker" id="detailKicker"></div>
+    <h2 class="detail-title" id="detailTitle"></h2>
+    <div class="detail-sub" id="detailSub"></div>
+    <div class="detail-head-actions" id="detailAudio"></div>
+    <div class="detail-scroll" id="detailBody"></div>
+    <div class="actions">
+      <button class="mini danger" id="detailDelete">删除</button>
+      <span class="spacer"></span>
+      <button class="btn" id="detailEdit">编辑</button>
+      <button class="btn primary" id="detailClose2">关闭</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script type="module">
@@ -333,10 +728,14 @@ const state = {
   audioSettings: { emotion_mode: "default", emotion: "", role: "" },
   audioOptions: { roles: [], emotions: [] },
   hideZh: false,
-  expandAll: false,
   fabOpen: false,
 };
 const PAGE_SIZE = 20;
+
+// Rows are cached per render so the detail dialog can look a record up by
+// kind+id instead of the markup having to carry its own copy of the text.
+const rowCache = new Map();
+function cacheRow(kind, row) { rowCache.set(`${kind}#${row.id}`, row); }
 
 function esc(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({
@@ -356,7 +755,246 @@ async function api(fn) {
   catch (e) { toast(e.message || "请求失败"); throw e; }
 }
 
-function applyTheme(isDark) { document.body.classList.toggle("dark", !!isDark); }
+// ==================== preferences ====================
+// The page runs in a sandboxed iframe without allow-same-origin, so
+// localStorage throws. Preferences go to the plugin KV store; localStorage is
+// still written (harmlessly) in case the sandbox is ever relaxed.
+
+const PREFS_STORAGE_KEY = "en_tutor_ui_prefs";
+const DEFAULT_PREFS = { volume: 0.8, muted: false, theme_mode: "auto", fab_open: false, motion_on: true };
+const THEME_MODES = ["auto", "light", "dark"];
+let prefs = { ...DEFAULT_PREFS };
+let prefsRemote = true;
+let prefsTimer = 0;
+let hostIsDark = false;
+
+function sanitizePrefs(raw) {
+  const out = { ...DEFAULT_PREFS };
+  if (!raw || typeof raw !== "object") return out;
+  const v = Number(raw.volume);
+  if (Number.isFinite(v)) out.volume = Math.min(1, Math.max(0, v));
+  if (typeof raw.muted === "boolean") out.muted = raw.muted;
+  if (THEME_MODES.includes(raw.theme_mode)) out.theme_mode = raw.theme_mode;
+  if (typeof raw.fab_open === "boolean") out.fab_open = raw.fab_open;
+  if (typeof raw.motion_on === "boolean") out.motion_on = raw.motion_on;
+  return out;
+}
+
+function readLocalPrefs() {
+  try { return JSON.parse(localStorage.getItem(PREFS_STORAGE_KEY) || "{}") || {}; }
+  catch { return {}; }
+}
+
+async function loadPrefs() {
+  prefs = sanitizePrefs({ ...DEFAULT_PREFS, ...readLocalPrefs() });
+  applyPrefs();
+  try {
+    prefs = sanitizePrefs(await bridge.apiGet("ui/prefs"));
+  } catch (_) {
+    prefsRemote = false; // route missing / plugin not reloaded: memory-only
+  }
+  applyPrefs();
+}
+
+function applyPrefs() {
+  applyVolume();
+  applyThemeMode();
+  renderThemeSeg();
+  setFabOpen(!!prefs.fab_open);
+  applyMotion();
+}
+
+// Toggle all page animations (background drift, masthead char drift, list
+// rise-in, button pulses) by adding/removing html.motion-off. Cheap and
+// instant — no need to re-render anything.
+function applyMotion() {
+  document.documentElement.classList.toggle("motion-off", !prefs.motion_on);
+  const btn = document.getElementById("motionBtn");
+  if (btn) btn.textContent = `动态效果：${prefs.motion_on ? "开" : "关"}`;
+}
+
+// Wrap every character of the masthead in a <span class="ch"> so the
+// charDrift keyframe can fade each one in with a tiny stagger. ASCII letters
+// drift like ink; CJK glyphs drift as whole characters (Array.from splits on
+// code points, so multi-codepoint glyphs aren't torn apart). One-shot — runs
+// once on boot, no re-runs.
+function splitMasthead() {
+  const h = document.querySelector(".head h1");
+  if (!h || h.dataset.split === "1") return;
+  const text = h.textContent;
+  h.textContent = "";
+  const frag = document.createDocumentFragment();
+  Array.from(text).forEach((ch, i) => {
+    const span = document.createElement("span");
+    span.className = "ch";
+    span.textContent = ch;
+    span.style.animationDelay = `${i * 0.035}s`;
+    frag.appendChild(span);
+  });
+  h.appendChild(frag);
+  h.dataset.split = "1";
+}
+
+function savePrefs() {
+  try { localStorage.setItem(PREFS_STORAGE_KEY, JSON.stringify(prefs)); } catch { /* ignore */ }
+  if (!prefsRemote) return;
+  clearTimeout(prefsTimer);
+  prefsTimer = setTimeout(async () => {
+    try { await bridge.apiPost("ui/prefs", prefs); }
+    catch (_) { prefsRemote = false; }
+  }, 400);
+}
+
+// ==================== theme ====================
+
+function applyThemeMode(isDark) {
+  if (typeof isDark === "boolean") hostIsDark = isDark;
+  const mode = prefs.theme_mode;
+  const dark = mode === "dark" || (mode === "auto" && hostIsDark);
+  document.documentElement.classList.toggle("dark", dark);
+  document.documentElement.dataset.themeMode = mode;
+  const cycle = document.getElementById("themeCycle");
+  if (cycle) cycle.textContent = mode === "auto" ? "◐" : mode === "light" ? "☀" : "☾";
+}
+
+function renderThemeSeg() {
+  document.querySelectorAll("#themeSeg .btn").forEach((b) => {
+    const on = b.dataset.themeMode === prefs.theme_mode;
+    b.classList.toggle("primary", on);
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+}
+
+document.querySelectorAll("#themeSeg .btn").forEach((b) => {
+  b.onclick = () => {
+    prefs.theme_mode = b.dataset.themeMode;
+    applyThemeMode();
+    renderThemeSeg();
+    savePrefs();
+  };
+});
+document.getElementById("themeCycle").onclick = () => {
+  prefs.theme_mode = THEME_MODES[(THEME_MODES.indexOf(prefs.theme_mode) + 1) % THEME_MODES.length];
+  applyThemeMode();
+  renderThemeSeg();
+  savePrefs();
+  toast("外观：" + { auto: "跟随面板", light: "亮色", dark: "暗色" }[prefs.theme_mode]);
+};
+
+// ==================== audio ====================
+
+// One shared <audio> element drives every row: playing a new sentence stops
+// the previous one, and whichever row owns the sound keeps its state even
+// after the list is re-rendered.
+const audioEl = new Audio();
+audioEl.preload = "none";
+
+const BTN_ICON = { idle: "▶", loading: "⋯", playing: "⏸", error: "!" };
+const TICKET_TTL_MS = 25 * 60 * 1000; // server-side TTL is 30 minutes
+const ticketCache = new Map();
+let playingKey = null;
+let activeBtn = null;
+let playToken = 0;
+let audioLoading = false;
+
+function applyVolume() {
+  const v = Math.min(1, Math.max(0, Number(prefs.volume) || 0));
+  audioEl.volume = v;
+  audioEl.muted = !!prefs.muted;
+  const all = document.getElementById("allPlayerAudio");
+  if (all) { all.volume = v; all.muted = !!prefs.muted; }
+}
+
+async function ticketUrl(assetId) {
+  const hit = ticketCache.get(assetId);
+  if (hit && Date.now() - hit.at < TICKET_TTL_MS) return hit.url;
+  const result = await bridge.apiGet(`audio/ticket/${encodeURIComponent(assetId)}`);
+  const url = result?.url || result?.data?.url;
+  if (!url) throw new Error("音频地址获取失败");
+  ticketCache.set(assetId, { url, at: Date.now() });
+  return url;
+}
+
+function setBtnState(btn, st) {
+  if (!btn || !btn.isConnected) return; // detached after a re-render
+  btn.dataset.state = st;
+  const ico = btn.querySelector(".ico");
+  if (ico) ico.textContent = BTN_ICON[st] || "▶";
+  btn.setAttribute("aria-pressed", st === "playing" ? "true" : "false");
+  btn.title = st === "playing" ? "暂停"
+    : st === "error" ? "音频加载失败，点击重试"
+    : "播放";
+}
+
+function clearActive() {
+  if (activeBtn) setBtnState(activeBtn, "idle");
+  activeBtn = null;
+  playingKey = null;
+}
+
+async function togglePlay(btn) {
+  const assetId = String(btn.dataset.audioId || "");
+  if (!assetId) return;
+  if (playingKey === assetId && audioEl.src) {
+    if (audioEl.paused) audioEl.play().catch(() => setBtnState(btn, "error"));
+    else audioEl.pause();
+    return;
+  }
+  await playAsset(btn, assetId);
+}
+
+async function playAsset(btn, assetId) {
+  const token = ++playToken;
+  clearActive();
+  playingKey = assetId;
+  activeBtn = btn;
+  setBtnState(btn, "loading");
+  const all = document.getElementById("allPlayerAudio");
+  if (all && !all.paused) all.pause();
+  audioLoading = true;
+  let url = "";
+  try {
+    url = await ticketUrl(assetId);
+    if (token !== playToken) return;
+    audioEl.src = url;
+    applyVolume();
+    await audioEl.play();
+    if (token !== playToken) return;
+    setBtnState(btn, "playing");
+  } catch (_) {
+    if (token !== playToken) return;
+    ticketCache.delete(assetId); // gateway port may have changed
+    if (audioEl.src === url) { audioEl.pause(); audioEl.removeAttribute("src"); }
+    clearActive();
+    setBtnState(btn, "error");
+    toast("音频播放失败");
+    setTimeout(() => {
+      if (btn.isConnected && btn.dataset.state === "error") setBtnState(btn, "idle");
+    }, 2500);
+  } finally {
+    if (token === playToken) audioLoading = false;
+  }
+}
+
+// Swapping src fires a pause for the old track; ignore it while loading.
+audioEl.addEventListener("playing", () => { if (activeBtn) setBtnState(activeBtn, "playing"); });
+audioEl.addEventListener("pause", () => { if (!audioLoading && activeBtn) setBtnState(activeBtn, "idle"); });
+audioEl.addEventListener("ended", clearActive);
+audioEl.addEventListener("error", () => {
+  if (!activeBtn) return;
+  ticketCache.delete(playingKey);
+  setBtnState(activeBtn, "error");
+  clearActive();
+});
+
+// Called after every list render: reclaim whichever row is still audible.
+function syncAudioButtons() {
+  document.querySelectorAll("#content .audio-btn[data-act='audio-play']").forEach((b) => {
+    const on = b.dataset.audioId === playingKey && !audioEl.paused;
+    setBtnState(b, on ? "playing" : "idle");
+    if (on) activeBtn = b;
+  });
+}
 
 async function loadAudioOptions() {
   try {
@@ -397,33 +1035,63 @@ function audioSettingsControls() {
     <button class="btn" id="batchAudioBtn" title="补齐当前类型的历史音频">补齐音频</button>`;
 }
 
-// Render TTS controls into the floating panel (they used to live in the
-// toolbar, which got crowded once filters were present).
+function volumeControls() {
+  const pct = Math.round((prefs.muted ? 0 : prefs.volume) * 100);
+  return `<div class="vol-row">
+    <button class="btn" id="volMuteBtn" title="${prefs.muted ? "取消静音" : "静音"}"
+      aria-pressed="${prefs.muted ? "true" : "false"}">${prefs.muted ? "🔇" : "🔊"}</button>
+    <input type="range" id="volRange" min="0" max="100" step="5" value="${pct}" aria-label="全局音量" />
+    <span class="vol-num">${pct}</span>
+  </div>`;
+}
+
+function bindVolume() {
+  const range = document.getElementById("volRange");
+  if (range) {
+    range.oninput = () => {
+      prefs.volume = Number(range.value) / 100;
+      if (prefs.volume > 0) prefs.muted = false;
+      const num = document.querySelector(".vol-num");
+      if (num) num.textContent = range.value;
+      applyVolume();
+      savePrefs();
+    };
+  }
+  const mute = document.getElementById("volMuteBtn");
+  if (mute) {
+    mute.onclick = () => {
+      prefs.muted = !prefs.muted;
+      applyVolume();
+      renderFabAudio();
+      savePrefs();
+    };
+  }
+}
+
+// Render TTS controls (when available) plus the always-present global volume.
 function renderFabAudio() {
   const section = document.getElementById("fabAudio");
-  if (!state.audioAvailable) { section.style.display = "none"; return; }
+  if (!section) return;
   section.style.display = "";
-  document.getElementById("fabAudioControls").innerHTML = audioSettingsControls();
+  const box = document.getElementById("fabAudioControls");
+  box.innerHTML = (state.audioAvailable ? audioSettingsControls() : "") + volumeControls();
   const roleEl = document.getElementById("audioRole");
   const modeEl = document.getElementById("audioEmotionMode");
   const emotionEl = document.getElementById("audioEmotion");
-  if (roleEl) roleEl.value = state.audioSettings.role || "";
-  if (modeEl) modeEl.value = state.audioSettings.emotion_mode || "default";
-  if (emotionEl) emotionEl.value = state.audioSettings.emotion || "";
-  if (roleEl) roleEl.onchange = syncAudioSettings;
-  if (modeEl) modeEl.onchange = syncAudioSettings;
-  if (emotionEl) emotionEl.onchange = syncAudioSettings;
-  syncAudioSettings();
-  document.getElementById("batchAudioBtn").onclick = batchAudio;
+  if (roleEl) { roleEl.value = state.audioSettings.role || ""; roleEl.onchange = syncAudioSettings; }
+  if (modeEl) { modeEl.value = state.audioSettings.emotion_mode || "default"; modeEl.onchange = syncAudioSettings; }
+  if (emotionEl) { emotionEl.value = state.audioSettings.emotion || ""; emotionEl.onchange = syncAudioSettings; }
+  if (modeEl) syncAudioSettings();
+  const batch = document.getElementById("batchAudioBtn");
+  if (batch) batch.onclick = batchAudio;
+  bindVolume();
 }
 
 function applyDisplayMode() {
   document.body.classList.toggle("hide-zh", state.hideZh);
-  document.body.classList.toggle("expand-all", state.expandAll);
   const zhBtn = document.getElementById("hideZhBtn");
   zhBtn.textContent = state.hideZh ? "纯英文模式：开" : "纯英文模式：关";
   zhBtn.classList.toggle("primary", state.hideZh);
-  document.getElementById("expandBtn").textContent = state.expandAll ? "收起全部详情" : "展开全部详情";
 }
 
 // ==================== stats ====================
@@ -487,45 +1155,49 @@ function renderToolbar() {
 
 // ==================== audio cells ====================
 
+function playBtn(assetId, size, kind, id, itemIndex, label) {
+  return `<button class="audio-btn play ${size}" data-act="audio-play"
+    data-audio-id="${assetId}" data-kind="${kind}" data-id="${id}" data-index="${itemIndex}"
+    data-state="idle" aria-label="${label}" title="播放"><span class="ico">▶</span></button>`;
+}
+
 function audioCell(kind, id, itemIndex, item) {
   const current = item && item.audio;
   const candidate = item && item.audio_candidate;
   const indexAttr = `data-index="${itemIndex}"`;
   let html = '<div class="audio-stack"><div class="audio-row">';
   if (current) {
-    html += `<audio class="audio-player" controls preload="metadata" data-audio-id="${current.id}" aria-label="播放音频"></audio>`;
+    html += playBtn(current.id, "lg", kind, id, itemIndex, "播放音频");
   } else if (state.audioAvailable) {
-    html += `<button class="audio-btn" data-act="audio-generate" data-kind="${kind}" data-id="${id}" ${indexAttr} title="生成音频" aria-label="生成音频">▶</button><span class="muted">未生成</span>`;
+    // "+" instead of "▶" so it no longer reads as a play button.
+    html += `<button class="audio-btn lg ghost" data-act="audio-generate" data-kind="${kind}"
+      data-id="${id}" ${indexAttr} title="生成音频" aria-label="生成音频">＋</button>
+      <span class="muted">未生成</span>`;
   } else {
     html += '<span class="muted">语音插件不可用</span>';
   }
   if (state.audioAvailable) {
-    html += `<button class="audio-btn" data-act="audio-regenerate" data-kind="${kind}" data-id="${id}" ${indexAttr} title="重新合成候选音频" aria-label="重新合成候选音频">↻</button>`;
+    html += `<button class="audio-btn sm ghost" data-act="audio-regenerate" data-kind="${kind}"
+      data-id="${id}" ${indexAttr} title="重新合成候选音频" aria-label="重新合成候选音频">↻</button>`;
   }
   html += '</div>';
   if (candidate) {
-    html += `<div class="audio-candidate"><span class="muted">候选</span><audio class="audio-player" controls preload="metadata" data-audio-id="${candidate.id}" aria-label="播放候选音频"></audio><button class="link audio-apply" data-act="audio-apply" data-kind="${kind}" data-id="${id}" ${indexAttr}>应用</button></div>`;
+    html += `<div class="audio-candidate">
+      <span class="cand-tag">候选</span>
+      ${playBtn(candidate.id, "sm", kind, id, itemIndex, "播放候选音频")}
+      <button class="audio-btn sm act-ok" data-act="audio-apply" data-kind="${kind}"
+        data-id="${id}" ${indexAttr} title="采用候选音频" aria-label="采用候选音频">✓</button>
+      <button class="audio-btn sm act-no" data-act="audio-discard" data-kind="${kind}"
+        data-id="${id}" ${indexAttr} title="丢弃候选音频" aria-label="丢弃候选音频">✕</button>
+    </div>`;
   }
   return html + '</div>';
 }
 
-async function hydrateAudioPlayers() {
-  const players = [...document.querySelectorAll("audio[data-audio-id]")];
-  await Promise.all(players.map(async (player) => {
-    const assetId = player.dataset.audioId;
-    if (!assetId || !player.isConnected) return;
-    try {
-      const result = await bridge.apiGet(`audio/ticket/${encodeURIComponent(assetId)}`);
-      const url = result?.url || result?.data?.url;
-      if (!url || !player.isConnected) throw new Error("audio ticket unavailable");
-      player.src = url;
-      player.load();
-    } catch {
-      player.removeAttribute("controls");
-      player.title = "音频加载失败，请刷新后重试";
-    }
-  }));
-}
+const AUDIO_MESSAGES = {
+  "audio-apply": "候选音频已应用",
+  "audio-discard": "候选音频已丢弃",
+};
 
 async function audioAction(act, kind, id, itemIndex) {
   syncAudioSettings();
@@ -533,7 +1205,7 @@ async function audioAction(act, kind, id, itemIndex) {
   if (itemIndex >= 0) payload.item_index = itemIndex;
   if (act === "audio-regenerate") Object.assign(payload, state.audioSettings);
   await api(() => bridge.apiPost(`audio/${act.replace("audio-", "")}`, payload));
-  toast(act === "audio-apply" ? "候选音频已应用" : "音频已更新");
+  toast(AUDIO_MESSAGES[act] || "音频已更新");
   await loadTab();
 }
 
@@ -580,6 +1252,8 @@ async function openAllPlayer(practiceId, title) {
     renderAllPlaylist();
     document.getElementById("allPlayerStatus").style.display = "none";
     document.getElementById("allPlayerBox").style.display = "";
+    if (!audioEl.paused) { audioEl.pause(); clearActive(); }
+    applyVolume();
     player.play();
   } catch (_) {
     // api() already toasts the failure reason.
@@ -629,21 +1303,38 @@ function markActivePlaylistItem() {
   });
 }
 
-function bindActions() {
-  document.querySelectorAll("#content button[data-act]").forEach((btn) => {
-    btn.onclick = () => {
+// Buttons inside a row stop propagation, so clicking 播放/编辑/删除 never
+// also opens the detail dialog.
+function bindRowActions(root) {
+  root.querySelectorAll("button[data-act]").forEach((btn) => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
       const { act, kind, id } = btn.dataset;
       const itemIndex = Number(btn.dataset.index ?? -1);
-      if (act === "delete") removeRow(kind, Number(id));
+      if (act === "row-detail") openDetail(kind, Number(id));
+      else if (act === "delete") removeRow(kind, Number(id));
       else if (act === "edit") openEditor(kind, Number(id));
-      else if (act === "details") btn.closest(".card")?.classList.toggle("open");
       else if (act === "allplay") {
         const card = btn.closest(".practice-card");
         openAllPlayer(Number(id), card?.querySelector(".date")?.textContent || "");
       }
-      else if (act === "audio-generate" || act === "audio-regenerate" || act === "audio-apply") {
+      else if (act === "audio-play") togglePlay(btn);
+      else if (["audio-generate", "audio-regenerate", "audio-apply", "audio-discard"].includes(act)) {
         audioAction(act, kind, Number(id), itemIndex);
       }
+    };
+  });
+}
+
+function bindActions() {
+  const content = document.getElementById("content");
+  bindRowActions(content);
+  // The row itself is the detail control: click anywhere that is not an
+  // interactive control inside it.
+  content.querySelectorAll(".card[data-act='row-detail']").forEach((card) => {
+    card.onclick = (e) => {
+      if (e.target.closest("button, a, input, select, textarea, audio")) return;
+      openDetail(card.dataset.kind, Number(card.dataset.id));
     };
   });
 }
@@ -672,28 +1363,105 @@ async function removeRow(kind, id) {
   loadStats();
 }
 
+// ==================== detail dialog ====================
+// Rows used to expand in place, which shoved the 编辑/删除 buttons out from
+// under the cursor. Now the whole row opens a dialog instead, and every field
+// gets its own labelled block at a readable size.
+
+const DETAIL_VIEWS = {
+  sentences: {
+    kicker: "Sentence · 句子收藏",
+    title: (r) => r.sentence,
+    sub: (r) => `${r.source === "ai" ? "来自教练" : "来自我"} · 收录于 ${r.date || "—"}`,
+    audio: true,
+    fields: [
+      { label: "释义 / 备注", key: "note", cls: "zh-part" },
+      { label: "学习情境", key: "context", cls: "zh-part" },
+      { label: "示例对话", key: "dialog", en: true },
+      { label: "标签", key: "tags", mono: true },
+    ],
+  },
+  errors: {
+    kicker: "Mistake · 错误日记",
+    title: (r) => r.original,
+    sub: (r) => `${r.last_date || "—"} · 出现 ${r.hit_count ?? 1} 次 · ${r.status === "open" ? "未解决" : "已掌握"}`,
+    fields: [
+      { label: "正确说法", key: "corrected", en: true },
+      { label: "讲解", key: "explanation", cls: "zh-part" },
+      { label: "类别", key: "category", mono: true },
+    ],
+  },
+  vocab: {
+    kicker: "Vocabulary · 单词本",
+    title: (r) => r.word,
+    sub: (r) => `下次复习 ${r.next_review || "—"} · 收录于 ${r.date || "—"}`,
+    audio: true,
+    fields: [
+      { label: "释义", key: "meaning", cls: "zh-part" },
+      { label: "例句", key: "example", en: true },
+      { label: "学习情境", key: "context", cls: "zh-part" },
+      { label: "示例对话", key: "dialog", en: true },
+    ],
+  },
+};
+
+const detailState = { kind: null, id: null };
+
+function openDetail(kind, id) {
+  const view = DETAIL_VIEWS[kind];
+  const row = rowCache.get(`${kind}#${id}`);
+  if (!view || !row) { toast("详情暂不可用，请刷新列表后重试"); return; }
+  detailState.kind = kind;
+  detailState.id = id;
+
+  document.getElementById("detailKicker").textContent = view.kicker;
+  document.getElementById("detailTitle").textContent = view.title(row) || "—";
+  document.getElementById("detailSub").textContent = view.sub(row) || "";
+
+  const blocks = view.fields
+    .filter((f) => String(row[f.key] ?? "").trim())
+    .map((f) => {
+      const cls = [f.en ? "en" : f.mono ? "mono" : "", f.cls || ""].join(" ").trim();
+      return `<div class="dfield"><div class="dlabel">${esc(f.label)}</div>` +
+        `<div class="dvalue ${cls}">${esc(row[f.key])}</div></div>`;
+    })
+    .join("");
+  document.getElementById("detailBody").innerHTML = blocks ||
+    `<div class="dfield"><div class="dvalue muted">这条记录还没有补充内容，点「编辑」把它补全。</div></div>`;
+
+  const audioBox = document.getElementById("detailAudio");
+  audioBox.innerHTML = view.audio ? audioCell(kind, id, -1, row) : "";
+  audioBox.style.display = audioBox.innerHTML ? "" : "none";
+  if (audioBox.innerHTML) bindRowActions(audioBox);
+
+  document.getElementById("detailEdit").style.display = EDITORS[kind] ? "" : "none";
+  document.getElementById("detailOverlay").classList.add("show");
+  document.getElementById("detailClose").focus();
+}
+
+function closeDetail() {
+  document.getElementById("detailOverlay").classList.remove("show");
+  detailState.kind = null;
+  detailState.id = null;
+}
+
 // ---- sentences ----
 
 function renderSentences(data) {
   if (!data.items.length) return `<div class="empty">还没有收藏的句子。对话里对教练说「这个句子不错，记一下」即可收藏。</div>`;
   return data.items.map((r) => {
-    const details = [];
-    if (r.context) details.push(`<div class="detail-line zh-part"><span class="detail-label">情境</span>${esc(String(r.context))}</div>`);
-    if (r.dialog) details.push(`<div class="detail-line"><span class="detail-label">对话</span><span class="en-text en">${esc(String(r.dialog))}</span></div>`);
-    const toggle = details.length
-      ? `<button class="link details-toggle" data-act="details">详情 ▸</button>` : "";
-    return `<div class="card">
+    cacheRow("sentences", r);
+    return `<div class="card" data-act="row-detail" data-kind="sentences" data-id="${r.id}"
+        title="点击查看详情">
       <div class="card-main">${esc(r.sentence)}</div>
       ${r.note ? `<div class="card-zh zh-part">${esc(r.note)}</div>` : ""}
-      ${details.length ? `<div class="card-details">${details.join("")}</div>` : ""}
       <div class="card-meta">
         <span class="pill">${r.source === "ai" ? "教练" : "我"}</span>
         <span class="muted">${esc(r.date)}</span>
         <span class="spacer"></span>
-        ${toggle}
         ${audioCell("sentences", r.id, -1, r)}
-        <button class="link" data-act="edit" data-kind="sentences" data-id="${r.id}">编辑</button>
-        <button class="link danger" data-act="delete" data-kind="sentences" data-id="${r.id}">删除</button>
+        <button class="mini" data-act="edit" data-kind="sentences" data-id="${r.id}">编辑</button>
+        <button class="mini danger" data-act="delete" data-kind="sentences" data-id="${r.id}">删除</button>
       </div>
     </div>`;
   }).join("");
@@ -704,7 +1472,9 @@ function renderSentences(data) {
 function renderErrors(data) {
   if (!data.items.length) return `<div class="empty">还没有错误记录。用英语聊天时教练会自动帮你记录。</div>`;
   return data.items.map((r) => {
-    return `<div class="card">
+    cacheRow("errors", r);
+    return `<div class="card" data-act="row-detail" data-kind="errors" data-id="${r.id}"
+        title="点击查看详情">
       <div class="card-main">${esc(r.original)}</div>
       ${r.corrected ? `<div class="card-corrected">→ ${esc(r.corrected)}</div>` : ""}
       ${r.explanation ? `<div class="card-zh zh-part">${esc(r.explanation)}</div>` : ""}
@@ -713,8 +1483,8 @@ function renderErrors(data) {
         <span class="pill ${r.status === "open" ? "open" : "resolved"}">${r.status === "open" ? "未解决" : "已掌握"}</span>
         <span class="muted">${esc(r.last_date)}（${r.hit_count} 次）</span>
         <span class="spacer"></span>
-        <button class="link" data-act="edit" data-kind="errors" data-id="${r.id}">编辑</button>
-        <button class="link danger" data-act="delete" data-kind="errors" data-id="${r.id}">删除</button>
+        <button class="mini" data-act="edit" data-kind="errors" data-id="${r.id}">编辑</button>
+        <button class="mini danger" data-act="delete" data-kind="errors" data-id="${r.id}">删除</button>
       </div>
     </div>`;
   }).join("");
@@ -725,24 +1495,19 @@ function renderErrors(data) {
 function renderVocab(data) {
   if (!data.items.length) return `<div class="empty">单词本还是空的。英语对话中出现的生词会自动收录。</div>`;
   return data.items.map((r) => {
-    const details = [];
-    if (r.context) details.push(`<div class="detail-line zh-part"><span class="detail-label">情境</span>${esc(String(r.context))}</div>`);
-    if (r.dialog) details.push(`<div class="detail-line"><span class="detail-label">对话</span><span class="en-text en">${esc(String(r.dialog))}</span></div>`);
-    const toggle = details.length
-      ? `<button class="link details-toggle" data-act="details">详情 ▸</button>` : "";
-    return `<div class="card">
+    cacheRow("vocab", r);
+    return `<div class="card" data-act="row-detail" data-kind="vocab" data-id="${r.id}"
+        title="点击查看详情">
       <div class="card-main">${esc(r.word)}</div>
       ${r.meaning ? `<div class="card-zh zh-part">${esc(r.meaning)}</div>` : ""}
       ${r.example ? `<div class="card-example">${esc(r.example)}</div>` : ""}
-      ${details.length ? `<div class="card-details">${details.join("")}</div>` : ""}
       <div class="card-meta">
         <span class="muted">复习 ${esc(r.next_review) || "—"}</span>
         <span class="muted">${esc(r.date)}</span>
         <span class="spacer"></span>
-        ${toggle}
         ${audioCell("vocab", r.id, -1, r)}
-        <button class="link" data-act="edit" data-kind="vocab" data-id="${r.id}">编辑</button>
-        <button class="link danger" data-act="delete" data-kind="vocab" data-id="${r.id}">删除</button>
+        <button class="mini" data-act="edit" data-kind="vocab" data-id="${r.id}">编辑</button>
+        <button class="mini danger" data-act="delete" data-kind="vocab" data-id="${r.id}">删除</button>
       </div>
     </div>`;
   }).join("");
@@ -758,7 +1523,7 @@ function renderPractice(data) {
       const speaker = it.speaker ? `<span class="muted">${esc(it.speaker)}：</span>` : "";
       const zh = it.zh ? `<div class="zh zh-part">${esc(it.zh)}${it.note ? `（${esc(it.note)}）` : ""}</div>` : "";
       const audio = audioCell("practice", p.id, (p.items || []).indexOf(it), it);
-      return `<div class="practice-item"><span class="en-text">${speaker}${esc(it.en)}</span>${zh}<div style="margin-top:5px">${audio}</div></div>`;
+      return `<div class="practice-item"><span class="en-text">${speaker}${esc(it.en)}</span>${zh}<div class="practice-audio">${audio}</div></div>`;
     }).join("");
     return `<div class="practice-card">
       <div class="practice-head">
@@ -767,8 +1532,8 @@ function renderPractice(data) {
         <span class="pill">${p.status === "pushed" ? "已推送" : "已生成"}</span>
         <span class="muted">${(p.items || []).length} 条</span>
         <span class="spacer"></span>
-        <button class="link" data-act="allplay" data-kind="practice" data-id="${p.id}">▶ 全天连播</button>
-        <button class="link danger" data-act="delete" data-kind="practice" data-id="${p.id}">删除</button>
+        <button class="mini" data-act="allplay" data-kind="practice" data-id="${p.id}">▶ 全天连播</button>
+        <button class="mini danger" data-act="delete" data-kind="practice" data-id="${p.id}">删除</button>
       </div>
       ${items}
     </div>`;
@@ -807,7 +1572,7 @@ function renderArchive(data) {
         <span class="${m.role === "user" ? "en" : ""}">${esc(m.content)}</span>
         <div class="muted">${time ? `${esc(time)} · ` : ""}${esc(m.date)}</div>
       </div>
-      <button class="link danger" data-act="delete" data-kind="archive" data-id="${m.id}">删除</button>
+      <button class="mini danger" data-act="delete" data-kind="archive" data-id="${m.id}">删除</button>
     </div>`;
     prev = m;
   }
@@ -964,7 +1729,7 @@ async function loadTab() {
   const total = data.total ?? data.items?.length ?? 0;
   content.innerHTML = total ? RENDERERS[tab](data) : `<div class="empty">暂无数据</div>`;
   bindActions();
-  await hydrateAudioPlayers();
+  syncAudioButtons();
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const pager = document.getElementById("pager");
@@ -1004,33 +1769,91 @@ document.addEventListener("keydown", (e) => {
     closeAllPlayer();
   }
 });
+
+// Detail dialog: ✕ / 关闭 / backdrop / Esc — four ways out, none of which
+// means hunting around for the control.
+document.getElementById("detailClose").onclick = closeDetail;
+document.getElementById("detailClose2").onclick = closeDetail;
+document.getElementById("detailOverlay").addEventListener("click", (e) => {
+  if (e.target === document.getElementById("detailOverlay")) closeDetail();
+});
+document.getElementById("detailEdit").onclick = async () => {
+  const { kind, id } = detailState;
+  if (!kind) return;
+  closeDetail();
+  await openEditor(kind, id);
+};
+document.getElementById("detailDelete").onclick = async () => {
+  const { kind, id } = detailState;
+  if (!kind) return;
+  closeDetail();
+  await removeRow(kind, id);
+};
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  if (document.getElementById("detailOverlay").classList.contains("show")) { closeDetail(); return; }
+  if (document.getElementById("overlay").classList.contains("show")) { closeEditor(); }
+});
 document.getElementById("allPlayerAudio").addEventListener("timeupdate", markActivePlaylistItem);
 
-// Floating panel: collapse toggle + display mode + quick actions.
+// ==================== floating panel ====================
+
 const fabEl = document.getElementById("fab");
 const fabToggle = document.getElementById("fabToggle");
 
-// Keep the panel hugging the content column's right edge instead of the far
-// window edge; on narrow windows there is no room beside the column, so clamp
-// back to the viewport edge.
+// Pin the panel's LEFT edge to .wrap's right edge + 14px — hugging the
+// content column, which is what "贴在句子面板右边" means. An earlier version
+// set `right:14px` from the viewport instead, which on a 1080px window left
+// a ~110px dead gap between the column and the panel and read as "floating
+// at the far right". Fall back to the viewport edge only when the panel
+// genuinely doesn't fit beside the column. Runs on every state change
+// because the panel width differs between collapsed pill (~96px) and
+// expanded panel (236px).
+const FAB_GUTTER = 14;     // px between .wrap's right edge and the panel
+const FAB_FALLBACK = 18;   // px from viewport edge when there's no room
 function positionFab() {
-  const wrapRect = document.querySelector(".wrap").getBoundingClientRect();
-  const left = Math.min(
-    wrapRect.right + 12,
-    window.innerWidth - fabEl.offsetWidth - 12
-  );
-  fabEl.style.left = `${Math.max(12, left)}px`;
-  fabEl.style.right = "auto";
+  const wrap = document.querySelector(".wrap");
+  if (!wrap || !fabEl) return;
+  const fabWidth = fabEl.getBoundingClientRect().width;
+  if (!fabWidth) return;
+  const wrapRect = wrap.getBoundingClientRect();
+  const desiredLeft = wrapRect.right + FAB_GUTTER;
+  const maxLeft = window.innerWidth - fabWidth - FAB_FALLBACK;
+  if (desiredLeft <= maxLeft) {
+    // Hug the column: panel grows rightward from a fixed left edge, so the
+    // ⚙ toggle (left side of the foot) never moves between states.
+    fabEl.style.left = `${desiredLeft}px`;
+    fabEl.style.right = "auto";
+  } else {
+    fabEl.style.right = `${FAB_FALLBACK}px`;
+    fabEl.style.left = "auto";
+  }
 }
 window.addEventListener("resize", positionFab);
 
-fabToggle.onclick = () => {
-  state.fabOpen = !state.fabOpen;
-  try { localStorage.setItem("en_tutor_fab_open", state.fabOpen ? "1" : "0"); } catch { /* ignore */ }
+function setFabOpen(open) {
+  state.fabOpen = !!open;
   fabEl.classList.toggle("min", !state.fabOpen);
   fabToggle.textContent = state.fabOpen ? "▾" : "⚙";
   fabToggle.title = state.fabOpen ? "收起面板" : "展开面板";
-  positionFab();
+  fabToggle.setAttribute("aria-label", fabToggle.title);
+  // Width just changed (96→236 or back); re-snap next frame so the new
+  // width is in play before we decide where to pin the panel.
+  requestAnimationFrame(positionFab);
+}
+
+fabToggle.onclick = () => {
+  setFabOpen(!state.fabOpen);
+  prefs.fab_open = state.fabOpen;
+  savePrefs();
+};
+// Back-to-top lives in the foot too, so the collapsed pill is symmetric and
+// the pair of buttons sits in the same place in both states.
+document.getElementById("fabTop").onclick = () => window.scrollTo({ top: 0, behavior: "smooth" });
+document.getElementById("motionBtn").onclick = () => {
+  prefs.motion_on = !prefs.motion_on;
+  applyMotion();
+  savePrefs();
 };
 document.getElementById("hideZhBtn").onclick = () => {
   state.hideZh = !state.hideZh;
@@ -1039,30 +1862,28 @@ document.getElementById("hideZhBtn").onclick = () => {
   try { localStorage.setItem("en_tutor_hide_zh", state.hideZh ? "1" : "0"); } catch { /* ignore */ }
   applyDisplayMode();
 };
-document.getElementById("expandBtn").onclick = () => {
-  state.expandAll = !state.expandAll;
-  applyDisplayMode();
-};
-document.getElementById("topBtn").onclick = () => window.scrollTo({ top: 0, behavior: "smooth" });
 document.getElementById("reloadBtn").onclick = () => loadTab();
 
-// Collapsed by default; remember the user's choice when storage is available.
-try {
-  if (localStorage.getItem("en_tutor_fab_open") === "1") state.fabOpen = true;
-} catch { /* ignore */ }
-fabEl.classList.toggle("min", !state.fabOpen);
-fabToggle.textContent = state.fabOpen ? "▾" : "⚙";
-fabToggle.title = state.fabOpen ? "收起面板" : "展开面板";
-try { state.hideZh = localStorage.getItem("en_tutor_hide_zh") === "1"; } catch { /* ignore */ }
-positionFab();
+// ==================== boot ====================
 
+// Build watermark (overrides user prefs) so users can tell at a glance
+// whether they're looking at the new or cached page after AstrBot reloads.
+const BUILD_TAG = "v0.8.0 · build 2026-09-08";
+document.title = `英语私教 · 数据管理 (${BUILD_TAG})`;
+
+try { state.hideZh = localStorage.getItem("en_tutor_hide_zh") === "1"; } catch { /* ignore */ }
+splitMasthead();
+await loadPrefs();
 const context = await bridge.ready();
-applyTheme(context.isDark);
-bridge.onContext((c) => applyTheme(c.isDark));
+applyThemeMode(context.isDark);
+bridge.onContext((c) => applyThemeMode(c.isDark));
 await loadAudioOptions();
 renderFabAudio();
 await loadStats();
 applyDisplayMode();
+positionFab();
+const buildEl = document.getElementById("buildTag");
+if (buildEl) buildEl.textContent = BUILD_TAG;
 await loadTab();
 </script>
 </body>

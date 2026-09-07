@@ -126,8 +126,8 @@ class EnglishTutorToolTests(unittest.TestCase):
     def test_version_and_repository_metadata(self) -> None:
         metadata = Path(__file__).with_name("metadata.yaml").read_text(encoding="utf-8")
         source = Path(__file__).with_name("main.py").read_text(encoding="utf-8")
-        self.assertIn("version: 0.7.5", metadata)
-        self.assertIn('"0.7.5"', source)
+        self.assertIn("version: 0.8.0", metadata)
+        self.assertIn('"0.8.0"', source)
         self.assertIn(
             "https://github.com/gongzhudeng/astrbot_plugin_english_tutor",
             metadata,
@@ -372,6 +372,11 @@ class DailyGenerationTests(unittest.TestCase):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.plugin = object.__new__(EnglishTutorPlugin)
         self.plugin.store = TutorStore(Path(self.temp_dir.name) / "tutor.db")
+        # Anchor "today" so these tests don't silently rot when the real
+        # calendar crosses the fixture dates (they broke on 2026-09-08
+        # because 2026-09-07 suddenly became "yesterday" and fell inside
+        # the history window).
+        self.plugin._today = lambda: "2026-09-08"
         self.plugin.config = {
             "daily_gen": {
                 "count": 8,
@@ -412,6 +417,10 @@ class DailyGenerationTests(unittest.TestCase):
 
     def test_history_excludes_today_and_older_than_window(self) -> None:
         store = self.plugin.store
+        # Re-anchor "today" to the row this test treats as today, so the
+        # fixture date (2026-09-07) is excluded as "today" rather than
+        # treated as yesterday inside the window.
+        self.plugin._today = lambda: "2026-09-07"
         store.save_daily(
             "2026-09-07",
             "",

@@ -526,6 +526,18 @@ class TutorAudioManager:
             )
             return self._payload(current, expected_text=str(target["text"])), ""
 
+    async def discard(self, target: dict[str, Any]) -> tuple[bool, str]:
+        """Drop a pending candidate audio without touching the current one."""
+        owner_type = str(target["owner_type"])
+        owner_id = int(target["owner_id"])
+        item_index = int(target.get("item_index", -1))
+        async with self._lock_for(target):
+            rows = self.store.delete_audio_assets(
+                owner_type, owner_id, item_index, status="candidate"
+            )
+            self._remove_rows(rows)
+        return True, ""
+
     def delete_owner(self, owner_type: str, owner_id: int) -> None:
         self._remove_rows(self.store.delete_audio_assets(owner_type, owner_id))
 
