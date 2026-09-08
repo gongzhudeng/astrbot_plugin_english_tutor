@@ -145,7 +145,7 @@ def extract_json(text: str) -> dict[str, Any] | None:
     PLUGIN_NAME,
     "灵犀",
     "AI 英语私教：对话纠错、错误日记、句子收藏、单词本、对话存档、每日练习生成。",
-    "0.8.0",
+    "0.8.1",
 )
 class EnglishTutorPlugin(Star):
     """英语私教插件主类。"""

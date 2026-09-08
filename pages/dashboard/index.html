@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<html lang="zh-CN" data-page-node-id="vndsue4nBeiLWbD7y9fMEh">
+<head data-page-node-id="IpscPSwapF4wfDpAR2cRBM">
+<meta charset="utf-8" data-page-node-id="ucYwVblwDy4c368XofKOgP" />
+<meta name="viewport" content="width=device-width, initial-scale=1" data-page-node-id="fgzP3g7NX59Bzd2pUESggT" />
 <title>英语私教 · 数据管理</title>
 <script>
   /* Paint the stored theme before first paint. The dashboard already stamps
@@ -294,6 +294,14 @@
   .bg-decor-dust {
     background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='320' height='320'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.32 0 0 0 0 0.26 0 0 0 0 0.18 0 0 0 0.85 0'/></filter><rect width='320' height='320' filter='url(%23n)'/></svg>");
     background-size: 320px 320px;
+    /* MUST repeat: .bg-decor-layer carries a leftover `no-repeat` from the
+       removed corner-blob radial gradients. With it, the grain rendered as
+       exactly ONE 320px tile anchored at the layer origin (top-left, shifted
+       by the -8%/-6% inset), so the whole "full-page grain" was a single
+       faint square patch drifting in the top-left corner — the "stray box
+       that moves like the watermark" the user kept reporting. The SVG is
+       stitchTiles='stitch', i.e. designed to tile seamlessly. */
+    background-repeat: repeat;
     opacity: 0.12;
     animation: driftDust 70s linear infinite;
   }
@@ -310,14 +318,21 @@
     pointer-events: none;
     white-space: nowrap;
     color: rgba(162, 84, 42, 0.07);
+    line-height: 1;            /* keep the glyph box exactly font-size tall,
+                                  otherwise the descender/ascender of a 12vw
+                                  serif eats ~20% above top:18vh and the
+                                  .bg-decor overflow:hidden clips the cap off
+                                  the leading letter (the user saw that as a
+                                  "stray floating box" in the top-left). */
+    padding-top: 0.18em;       /* nudge glyph back into its own line-box */
     will-change: transform, opacity;
   }
   .bg-decor-word.w1 {
-    left: 3vw; top: 18vh; font-size: 12vw; transform: rotate(-9deg);
+    left: 3vw; top: 22vh; font-size: 12vw; transform: rotate(-9deg);
     animation: wordDriftA 16s ease-in-out infinite alternate;
   }
   .bg-decor-word.w2 {
-    right: 3vw; bottom: 14vh; font-size: 9.5vw; transform: rotate(6deg);
+    right: 3vw; bottom: 16vh; font-size: 9.5vw; transform: rotate(6deg);
     animation: wordDriftB 20s ease-in-out infinite alternate;
   }
   html.dark .bg-decor-word { color: rgba(219, 154, 85, 0.10); }
@@ -326,11 +341,11 @@
      without ever becoming busy. */
   @keyframes wordDriftA {
     0%   { transform: rotate(-9deg) translate3d(0, 0, 0); opacity: .72; }
-    100% { transform: rotate(-9deg) translate3d(46px, -30px, 0); opacity: 1; }
+    100% { transform: rotate(-9deg) translate3d(36px, -16px, 0); opacity: 1; }
   }
   @keyframes wordDriftB {
     0%   { transform: rotate(6deg) translate3d(0, 0, 0); opacity: 1; }
-    100% { transform: rotate(6deg) translate3d(-38px, 26px, 0); opacity: .72; }
+    100% { transform: rotate(6deg) translate3d(-30px, 14px, 0); opacity: .72; }
   }
   /* The earlier mouse-following gutter glow was removed: users mistook its
      540px warm radial for a stray "block in the corner" and the "it follows
@@ -579,85 +594,85 @@
   }
 </style>
 </head>
-<body>
+<body data-page-node-id="Xs96PoJMsNyDZZ1GUe2iGR">
 <!-- Background decoration: slow-drifting paper dust + two large watermark
      words. Sits behind .wrap in painting order (wrap is positioned with
      z-index:1, so the opaque panels occlude the decoration and only the
      gutters stay decorated). The fab (z-30), dialogs (z-40) and toast
      (z-50) all sit above this. -->
-<div class="bg-decor" aria-hidden="true">
-  <div class="bg-decor-layer bg-decor-dust"></div>
-  <div class="bg-decor-word w1">Practice</div>
-  <div class="bg-decor-word w2">English · Daily</div>
+<div class="bg-decor" aria-hidden="true" data-page-node-id="CglKXFtQEnTMPnuzLSQdmu">
+  <div class="bg-decor-layer bg-decor-dust" data-page-node-id="I0me4FGmrPHCFVVI1tegIJ"></div>
+  <div class="bg-decor-word w1" data-page-node-id="TaVTGj84bC6zrRgXTebQNo">Practice</div>
+  <div class="bg-decor-word w2" data-page-node-id="JfuCTos2KjX5e8ld6Fl1pz">English · Daily</div>
 </div>
-<div class="wrap">
-  <div class="head">
-    <h1>英语私教 · 数据管理</h1>
-    <span class="sub" id="bindInfo"></span>
-    <span class="build-tag" id="buildTag"></span>
-    <span class="spacer"></span>
-    <button class="theme-cycle" id="themeCycle" title="切换外观（跟随 / 亮色 / 暗色）">◐</button>
+<div class="wrap" data-page-node-id="cSZFJQUAe7DMCijInaapuj">
+  <div class="head" data-page-node-id="lRZq02VKOaXrxtlefRhFDi">
+    <h1 data-page-node-id="frALR5P79rVbnDjNpFXB8r">英语私教 · 数据管理</h1>
+    <span class="sub" id="bindInfo" data-page-node-id="sx1pL7BDTZcI1MzMfP4SZE"></span>
+    <span class="build-tag" id="buildTag" data-page-node-id="E9csYNgVDUeGQMYknI4iv2"></span>
+    <span class="spacer" data-page-node-id="Od9Zz82cVGkYNWYSJ5mln5"></span>
+    <button class="theme-cycle" id="themeCycle" title="切换外观（跟随 / 亮色 / 暗色）" data-page-node-id="liUWfFzi9ZL1MTDfJ880Ox">◐</button>
   </div>
 
-  <div class="stats" id="stats"></div>
+  <div class="stats" id="stats" data-page-node-id="JiJNHBfbCq4Mz7LKGLwdy2"></div>
 
-  <div class="tabs" id="tabs">
-    <button class="tab active" data-tab="sentences">句子收藏</button>
-    <button class="tab" data-tab="errors">错误日记</button>
-    <button class="tab" data-tab="vocab">单词本</button>
-    <button class="tab" data-tab="practice">每日练习</button>
-    <button class="tab" data-tab="archive">对话存档</button>
+  <div class="tabs" id="tabs" data-page-node-id="r8goHEtOR7sTFRJzPJDDFk">
+    <button class="tab active" data-tab="sentences" data-page-node-id="KSAWqHmhHquONRoxSMb0hy">句子收藏</button>
+    <button class="tab" data-tab="errors" data-page-node-id="mn7gqj1UZ0OPSIoGKlsvX1">错误日记</button>
+    <button class="tab" data-tab="vocab" data-page-node-id="csLFWxkCKE79bRWpCUiQSq">单词本</button>
+    <button class="tab" data-tab="practice" data-page-node-id="WxNsWQQkriepIMqW80eFvQ">每日练习</button>
+    <button class="tab" data-tab="archive" data-page-node-id="5XIKhf4MXFZIcXYpi229wD">对话存档</button>
   </div>
 
-  <div class="toolbar" id="toolbar"></div>
-  <div class="panel" id="content"><div class="empty">加载中……</div></div>
-  <div class="pager" id="pager" style="display:none">
-    <span class="info" id="pageInfo"></span>
-    <button class="btn" id="prevBtn">上一页</button>
-    <button class="btn" id="nextBtn">下一页</button>
+  <div class="toolbar" id="toolbar" data-page-node-id="lF2CMiX4x7ux42FNtIhxgM"></div>
+  <div class="panel" id="content" data-page-node-id="vIMBu4oQNtWucxrcKTdCzN"><div class="empty" data-page-node-id="e5CaLGRipG8ovx9m5UKNrC">加载中……</div></div>
+  <div class="pager" id="pager" style="display:none" data-page-node-id="6rOOc7yes2LImd0hQBhKVD">
+    <span class="info" id="pageInfo" data-page-node-id="S3vBahLUagl6eVX4KttxXt"></span>
+    <button class="btn" id="prevBtn" data-page-node-id="zgqqeh8Q7vAxXzDsdmj6fp">上一页</button>
+    <button class="btn" id="nextBtn" data-page-node-id="w4iDsmlznZ9t68SBIz8MCd">下一页</button>
   </div>
 </div>
 
 <!-- Floating tool panel: pinned bottom-right, starts collapsed. The toggle
      sits at the panel's bottom-right corner in both states. -->
-<div class="fab min" id="fab">
-  <div class="fab-body">
-    <div class="fab-section">
-      <div class="fab-label">外观</div>
-      <div class="fab-row seg" id="themeSeg">
-        <button class="btn" data-theme-mode="auto">跟随</button>
-        <button class="btn" data-theme-mode="light">亮色</button>
-        <button class="btn" data-theme-mode="dark">暗色</button>
+<div class="fab min" id="fab" data-page-node-id="wuPoDDoicxZEmfLnljacU1">
+  <div class="fab-body" data-page-node-id="XGuaQhmSEVoyxHVHlGs9GM">
+    <div class="fab-section" data-page-node-id="KL5nfp2rKgVSy3UOROJtzV">
+      <div class="fab-label" data-page-node-id="jedXCevIdxmqHdnCbaunoF">外观</div>
+      <div class="fab-row seg" id="themeSeg" data-page-node-id="rGYESYFfDZHoY64SmAHtqg">
+        <button class="btn" data-theme-mode="auto" data-page-node-id="bieICYLiyX4eJOonRuT4gL">跟随</button>
+        <button class="btn" data-theme-mode="light" data-page-node-id="wsPXOkUqFHPIbA2pOA6Uzb">亮色</button>
+        <button class="btn" data-theme-mode="dark" data-page-node-id="8GDc9bNbGZ5IYGGhCgDIlb">暗色</button>
       </div>
     </div>
-    <div class="fab-section">
-      <div class="fab-label">显示</div>
-      <button class="btn" id="hideZhBtn">纯英文模式：关</button>
-      <div style="height:6px"></div>
-      <button class="btn" id="motionBtn">动态效果：开</button>
+    <div class="fab-section" data-page-node-id="X8GXKAYuJxyNoLjXXPrM9O">
+      <div class="fab-label" data-page-node-id="cZ7CbOsIZeQMOWdCC1fGVp">显示</div>
+      <button class="btn" id="hideZhBtn" data-page-node-id="TsSTvQD8JlToiiG2tm7XmX">纯英文模式：关</button>
+      <div style="height:6px" data-page-node-id="Vt1YGDFLoGsjBw8VzQ2hOU"></div>
+      <button class="btn" id="motionBtn" data-page-node-id="H6zZxuoruJWteMZWq8GcTb">动态效果：开</button>
     </div>
-    <div class="fab-section" id="fabAudio">
-      <div class="fab-label">音频</div>
-      <div id="fabAudioControls"></div>
+    <div class="fab-section" id="fabAudio" data-page-node-id="fwiaxi0FCYlLBtTWTLz6T3">
+      <div class="fab-label" data-page-node-id="3pALCB5JH5C3Y6LhoLPaOH">音频</div>
+      <div id="fabAudioControls" data-page-node-id="fCPg6AKgrze3OLpy9FxbC5"></div>
     </div>
-    <div class="fab-section">
-      <button class="btn" id="reloadBtn">刷新列表</button>
+    <div class="fab-section" data-page-node-id="ksp0qXhKq4K7Nyxy1DmAyn">
+      <button class="btn" id="reloadBtn" data-page-node-id="EwvQm7LpKSSEqWWAEm5Fs3">刷新列表</button>
     </div>
   </div>
-  <div class="fab-foot">
-    <button class="fab-btn" id="fabToggle" title="展开面板" aria-label="展开面板">⚙</button>
-    <button class="fab-btn" id="fabTop" title="回到顶部" aria-label="回到顶部">↑</button>
+  <div class="fab-foot" data-page-node-id="G6Ix7FDcjJ3EwDEajIaZjJ">
+    <button class="fab-btn" id="fabToggle" title="展开面板" aria-label="展开面板" data-page-node-id="QhIh4P5t6RQOHVL9x1W4L5">⚙</button>
+    <button class="fab-btn" id="fabTop" title="回到顶部" aria-label="回到顶部" data-page-node-id="OKb2rVh1FnUwYKpyeSuO0w">↑</button>
   </div>
 </div>
 
-<div class="overlay" id="overlay">
-  <div class="dialog">
-    <h3 id="dialogTitle">编辑</h3>
-    <div id="dialogFields"></div>
-    <div class="actions">
-      <button class="btn" id="aiFillBtn" style="display:none;margin-right:auto">🤖 AI 填充</button>
-      <button class="btn" id="dialogCancel">取消</button>
-      <button class="btn primary" id="dialogSave">保存</button>
+<div class="overlay" id="overlay" data-page-node-id="cUlVvSSMicZnHb78zOTvYK">
+  <div class="dialog" data-page-node-id="YWh0XMdLTwYHoA83sGguGR">
+    <h3 id="dialogTitle" data-page-node-id="yFRdQR5z856DS3rOMjvBEu">编辑</h3>
+    <div id="dialogFields" data-page-node-id="tl32dBdOBc2NE9i1ZcdbPJ"></div>
+    <div class="actions" data-page-node-id="XMqSuBWWxskIESJmWZ489a">
+      <button class="btn" id="aiFillBtn" style="display:none;margin-right:auto" data-page-node-id="jQbWlUgRA64Kr9bdlmtAQD">🤖 AI 填充</button>
+      <button class="btn" id="dialogCancel" data-page-node-id="EH5MeJ4DBoDBqBS6pkVAWz">取消</button>
+      <button class="btn primary" id="dialogSave" data-page-node-id="64oRjzFGVHVsd9jXmG4IDC">保存</button>
     </div>
   </div>
 </div>
@@ -665,29 +680,29 @@
 <!-- In-page delete confirmation. The dashboard embeds this page in a sandboxed
      iframe without allow-modals, so window.confirm() is ignored by the browser
      and always returns false — a custom dialog is required. -->
-<div class="overlay" id="confirmOverlay">
-  <div class="dialog">
-    <h3>确认删除</h3>
-    <p id="confirmText"></p>
-    <div class="actions">
-      <button class="btn" id="confirmCancel">取消</button>
-      <button class="btn danger" id="confirmOk">删除</button>
+<div class="overlay" id="confirmOverlay" data-page-node-id="EL1rTrIxVoIqYCyJWowpDb">
+  <div class="dialog" data-page-node-id="PZIBJxhHu6FpQHyyoYpiIj">
+    <h3 data-page-node-id="og9C64PYbuyDbi0emxOK6D">确认删除</h3>
+    <p id="confirmText" data-page-node-id="lUSu0gAkN6W1ENWSYZKDxu"></p>
+    <div class="actions" data-page-node-id="aLNDqH7rjkDZsS12l7kJ8X">
+      <button class="btn" id="confirmCancel" data-page-node-id="tgE9qtyXA9gzkqom2s9jfa">取消</button>
+      <button class="btn danger" id="confirmOk" data-page-node-id="tqnnAC4l91lxlEjTAHF0tA">删除</button>
     </div>
   </div>
 </div>
 
 <!-- Centered day-wide playback dialog: a wide native player plus the day's
      sentence list; clicking a sentence jumps to its position. -->
-<div class="overlay" id="allPlayerOverlay">
-  <div class="dialog all-player-dialog">
-    <h3 id="allPlayerTitle">全天连播</h3>
-    <p class="all-status" id="allPlayerStatus">正在合并当天音频…</p>
-    <div class="all-box" id="allPlayerBox" style="display:none">
-      <audio id="allPlayerAudio" controls preload="metadata" aria-label="播放当天全部音频"></audio>
+<div class="overlay" id="allPlayerOverlay" data-page-node-id="oljCVsF8q6LnEIRnwiy0lP">
+  <div class="dialog all-player-dialog" data-page-node-id="UrsBoarRox7Kzgugxt0RT0">
+    <h3 id="allPlayerTitle" data-page-node-id="wDo3lsRJ2OBshgBmGMtTfe">全天连播</h3>
+    <p class="all-status" id="allPlayerStatus" data-page-node-id="oCeSE9xSTN7ekfrTJLkeZ3">正在合并当天音频…</p>
+    <div class="all-box" id="allPlayerBox" style="display:none" data-page-node-id="Y6ELNRW0eFrTcKabjwBwTj">
+      <audio id="allPlayerAudio" controls preload="metadata" aria-label="播放当天全部音频" data-page-node-id="SBBIojjUHME87IFZNAZRGk"></audio>
     </div>
-    <div class="all-playlist" id="allPlaylist"></div>
-    <div class="actions">
-      <button class="btn" id="allPlayerClose">关闭</button>
+    <div class="all-playlist" id="allPlaylist" data-page-node-id="c8qLexI6a3MWNr8DuEOL8L"></div>
+    <div class="actions" data-page-node-id="JuDhjaXzZEw5RzbPCtokOp">
+      <button class="btn" id="allPlayerClose" data-page-node-id="kf2P4mv9x3pZFlq8kT6p5B">关闭</button>
     </div>
   </div>
 </div>
@@ -695,24 +710,24 @@
 <!-- Row detail. Opened by clicking anywhere on a sentence / error / vocab row
      (the old inline 详情 toggle pushed the row buttons away from the cursor).
      Closes on ✕, on 关闭, on the backdrop, or on Esc. -->
-<div class="overlay" id="detailOverlay">
-  <div class="dialog detail-dialog" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
-    <button class="dialog-x" id="detailClose" title="关闭（Esc）" aria-label="关闭">✕</button>
-    <div class="detail-kicker" id="detailKicker"></div>
-    <h2 class="detail-title" id="detailTitle"></h2>
-    <div class="detail-sub" id="detailSub"></div>
-    <div class="detail-head-actions" id="detailAudio"></div>
-    <div class="detail-scroll" id="detailBody"></div>
-    <div class="actions">
-      <button class="mini danger" id="detailDelete">删除</button>
-      <span class="spacer"></span>
-      <button class="btn" id="detailEdit">编辑</button>
-      <button class="btn primary" id="detailClose2">关闭</button>
+<div class="overlay" id="detailOverlay" data-page-node-id="VVB8qhaIHA0b8hL0NIfM2Y">
+  <div class="dialog detail-dialog" role="dialog" aria-modal="true" aria-labelledby="detailTitle" data-page-node-id="nRTzeHA9qcxGrzmvYMKyv1">
+    <button class="dialog-x" id="detailClose" title="关闭（Esc）" aria-label="关闭" data-page-node-id="BaiZExKl2xQzKaQU34gBZO">✕</button>
+    <div class="detail-kicker" id="detailKicker" data-page-node-id="n7KsqGmHJ9VZUUWkAisp9k"></div>
+    <h2 class="detail-title" id="detailTitle" data-page-node-id="YmSJOK3QOkaDvQHQkSWoYr"></h2>
+    <div class="detail-sub" id="detailSub" data-page-node-id="0i6j9hnrb2It4qDt5KhTJ3"></div>
+    <div class="detail-head-actions" id="detailAudio" data-page-node-id="es7qBTOqW6ErEGQzQYz6y0"></div>
+    <div class="detail-scroll" id="detailBody" data-page-node-id="rzf22KVpNk6XDq46tM8ZOQ"></div>
+    <div class="actions" data-page-node-id="6tLuhunqCDf8bnAP2ZDs10">
+      <button class="mini danger" id="detailDelete" data-page-node-id="swRYo6HA6aWPSTfj12ABse">删除</button>
+      <span class="spacer" data-page-node-id="uhOScKddRuCkYww9ABeJ5U"></span>
+      <button class="btn" id="detailEdit" data-page-node-id="1mZfE5DZAQ9kcIHQjTSu6g">编辑</button>
+      <button class="btn primary" id="detailClose2" data-page-node-id="MRHp8hnBNtD7Udt4diBlbG">关闭</button>
     </div>
   </div>
 </div>
 
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" data-page-node-id="ahiDYpH88h7wtCxaNcTTGO"></div>
 
 <script type="module">
 const bridge = window.AstrBotPluginPage;
